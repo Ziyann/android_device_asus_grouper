@@ -39,4 +39,4 @@ PRODUCT_RESTRICT_VENDOR_FILES := false
 
 # Kernel inline build
 TARGET_KERNEL_SOURCE := kernel/asus/grouper
-TARGET_KERNEL_CONFIG := tegra3_android_defconfig
+TARGET_KERNEL_CONFIG := grouper_defconfig
