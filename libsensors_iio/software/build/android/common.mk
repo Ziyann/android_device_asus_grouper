@@ -5,7 +5,7 @@ SHELL = /bin/bash
 ## defines
 
 # Build for Jellybean 
-BUILD_ANDROID_JELLYBEAN = 1
+BUILD_ANDROID_JELLYBEAN = $(shell test -d $(ANDROID_ROOT)/frameworks/native && echo 1)
 
 ## libraries ##
 LIB_PREFIX = lib
@@ -35,7 +35,7 @@ ANDROID_LINK  = -nostdlib
 ANDROID_LINK += -fpic
 ANDROID_LINK += -Wl,--gc-sections 
 ANDROID_LINK += -Wl,--no-whole-archive 
-ANDROID_LINK += -L$(ANDROID_ROOT)/out/target/product/$(PRODUCT)/obj/lib 
+ANDROID_LINK += -L$(ANDROID_ROOT)/out/target/product/$(PRODUCT)/obj/lib
 ANDROID_LINK += -L$(ANDROID_ROOT)/out/target/product/$(PRODUCT)/system/lib
 
 ANDROID_LINK_EXECUTABLE  = $(ANDROID_LINK)

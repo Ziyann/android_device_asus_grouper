@@ -19,6 +19,10 @@
  *                Typically, these functions process stored calibration data.
  */
 
+#undef MPL_LOG_NDEBUG
+#define MPL_LOG_NDEBUG 0 /* Use 0 to turn on MPL_LOGV output */
+#undef MPL_LOG_TAG
+
 #include <stdio.h>
 
 #include "log.h"
@@ -68,9 +72,8 @@ inv_error_t inv_read_cal(unsigned char **calData, size_t *bytesRead)
                  *bytesRead, fsize);
         result = INV_ERROR_FILE_READ;
         goto read_cal_end;
-    }
-    else {
-        MPL_LOGI("Bytes read = %d", *bytesRead);
+    } else {
+        MPL_LOGV("Bytes read = %d", *bytesRead);
     }
 
 read_cal_end:
@@ -87,9 +90,8 @@ inv_error_t inv_write_cal(unsigned char *cal, size_t len)
     if (len <= 0) {
         MPL_LOGE("Nothing to write");
         return INV_ERROR_FILE_WRITE;
-    }
-    else {
-        MPL_LOGI("cal data size to write = %d", len);
+    } else {
+        MPL_LOGV("cal data size to write = %d", len);
     }
     fp = fopen(MLCAL_FILE,"wb");
     if (fp == NULL) {
@@ -101,9 +103,8 @@ inv_error_t inv_write_cal(unsigned char *cal, size_t len)
         MPL_LOGE("bytes written (%d) don't match requested length (%d)\n",
                  bytesWritten, len);
         result = INV_ERROR_FILE_WRITE;
-    }
-    else {
-        MPL_LOGI("Bytes written = %d", bytesWritten);
+    } else {
+        MPL_LOGV("Bytes written = %d", bytesWritten);
     }
     fclose(fp);
     return result;
@@ -249,12 +250,11 @@ inv_error_t inv_store_cal(unsigned char *calData, size_t length)
 
     inv_get_mpl_state_size(&size);
 
-    MPL_LOGI("inv_get_mpl_state_size() : size=%d", size);
+    MPL_LOGV("inv_get_mpl_state_size() : size=%d", size);
 
     /* store data */
     res = inv_save_mpl_states(calData, size);
-    if(res != 0)
-    {
+    if(res != 0) {
         MPL_LOGE("inv_save_mpl_states() failed");
     }
 
@@ -319,9 +319,8 @@ inv_error_t inv_store_calibration(void)
         MPL_LOGE("Could not allocate buffer of %d bytes - "
                  "aborting\n", length);
         return INV_ERROR_MEMORY_EXAUSTED;
-    }
-    else {
-        MPL_LOGI("mpl state size = %d", length);
+    } else {
+        MPL_LOGV("inv_get_mpl state size = %d", length);
     }
 
     result = inv_save_mpl_states(calData, length);
@@ -329,9 +328,8 @@ inv_error_t inv_store_calibration(void)
         MPL_LOGE("Could not save mpl states - "
                  "error %d - aborting\n", result);
         goto free_mem_n_exit;
-    }
-    else {
-        MPL_LOGE("calData from inv_save_mpl_states, size=%d", 
+    } else {
+        MPL_LOGV("calData from inv_save_mpl_states, size=%d", 
                  strlen((char *)calData));
     }
 

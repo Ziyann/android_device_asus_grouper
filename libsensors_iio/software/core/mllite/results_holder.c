@@ -27,15 +27,20 @@
 // These 2 status bits are used to control when the 9 axis quaternion is updated
 #define INV_COMPASS_CORRECTION_SET 1
 #define INV_6_AXIS_QUAT_SET 2
+#define INV_GEOMAGNETIC_CORRECTION_SET 4
 
 struct results_t {
     long nav_quat[4];
     long gam_quat[4];
+    long geomag_quat[4];
+    long accel_quat[4];
     inv_time_t nav_timestamp;
     inv_time_t gam_timestamp;
+    inv_time_t geomag_timestamp;
     long local_field[3]; /**< local earth's magnetic field */
     long mag_scale[3]; /**< scale factor to apply to magnetic field reading */
     long compass_correction[4]; /**< quaternion going from gyro,accel quaternion to 9 axis */
+    long geomag_compass_correction[4]; /**< quaternion going from accel quaternion to geomag sensor fusion */
     int acc_state; /**< Describes accel state */
     int got_accel_bias; /**< Flag describing if accel bias is known */
     long compass_bias_error[3]; /**< Error Squared */
@@ -48,6 +53,7 @@ struct results_t {
     long status;
     struct inv_sensor_cal_t *sensor;
     float quat_confidence_interval;
+    float geo_mag_confidence_interval;
 };
 static struct results_t rh;
 
@@ -64,6 +70,17 @@ void inv_store_gaming_quaternion(const long *quat, inv_time_t timestamp)
 }
 
 /** @internal
+* Store a quaternion computed from accelerometer correction. This quaternion is 
+* determined * using only accel, and used for geomagnetic fusion. 
+* @param[in] quat Length 4, Quaternion scaled by 2^30
+*/
+void inv_store_accel_quaternion(const long *quat, inv_time_t timestamp)
+{
+   // rh.status |= INV_6_AXIS_QUAT_SET;
+    memcpy(&rh.accel_quat, quat, sizeof(rh.accel_quat));
+    rh.geomag_timestamp = timestamp;
+}
+/** @internal
 * Sets the quaternion adjustment from 6 axis (accel, gyro) to 9 axis quaternion.
 * @param[in] data Quaternion Adjustment
 * @param[in] timestamp Timestamp of when this is valid
@@ -76,6 +93,18 @@ void inv_set_compass_correction(const long *data, inv_time_t timestamp)
 }
 
 /** @internal
+* Sets the quaternion adjustment from 3 axis (accel) to 6 axis (with compass) quaternion.
+* @param[in] data Quaternion Adjustment
+* @param[in] timestamp Timestamp of when this is valid
+*/
+void inv_set_geomagnetic_compass_correction(const long *data, inv_time_t timestamp)
+{
+    rh.status |= INV_GEOMAGNETIC_CORRECTION_SET;
+    memcpy(rh.geomag_compass_correction, data, sizeof(rh.geomag_compass_correction));
+    rh.geomag_timestamp = timestamp;
+}
+
+/** @internal
 * Gets the quaternion adjustment from 6 axis (accel, gyro) to 9 axis quaternion.
 * @param[out] data Quaternion Adjustment
 * @param[out] timestamp Timestamp of when this is valid
@@ -84,6 +113,17 @@ void inv_get_compass_correction(long *data, inv_time_t *timestamp)
 {
     memcpy(data, rh.compass_correction, sizeof(rh.compass_correction));
     *timestamp = rh.nav_timestamp;
+}
+
+/** @internal
+* Gets the quaternion adjustment from 3 axis (accel) to 6 axis (with compass) quaternion.
+* @param[out] data Quaternion Adjustment
+* @param[out] timestamp Timestamp of when this is valid
+*/
+void inv_get_geomagnetic_compass_correction(long *data, inv_time_t *timestamp)
+{
+    memcpy(data, rh.geomag_compass_correction, sizeof(rh.geomag_compass_correction));
+    *timestamp = rh.geomag_timestamp;
 }
 
 /** Returns non-zero if there is a large magnetic field. See inv_set_large_mag_field() for setting this variable.
@@ -209,13 +249,34 @@ inv_error_t inv_get_gravity(long *data)
     return INV_SUCCESS;
 }
 
+/** Returns a quaternion based only on accel.
+ * @param[out] data 3-axis  accel quaternion scaled such that 1.0 = 2^30.
+ * @return Returns INV_SUCCESS if successful or an error code if not.
+ */
+inv_error_t inv_get_accel_quaternion(long *data)
+{
+    memcpy(data, rh.accel_quat, sizeof(rh.accel_quat));
+    return INV_SUCCESS;
+}
+inv_error_t inv_get_gravity_6x(long *data)
+{
+    data[0] =
+        inv_q29_mult(rh.gam_quat[1], rh.gam_quat[3]) - inv_q29_mult(rh.gam_quat[2], rh.gam_quat[0]);
+    data[1] =
+        inv_q29_mult(rh.gam_quat[2], rh.gam_quat[3]) + inv_q29_mult(rh.gam_quat[1], rh.gam_quat[0]);
+    data[2] =
+        (inv_q29_mult(rh.gam_quat[3], rh.gam_quat[3]) + inv_q29_mult(rh.gam_quat[0], rh.gam_quat[0])) -
+        1073741824L;
+    return INV_SUCCESS;
+}
 /** Returns a quaternion based only on gyro and accel.
  * @param[out] data 6-axis  gyro and accel quaternion scaled such that 1.0 = 2^30.
  * @return Returns INV_SUCCESS if successful or an error code if not.
  */
-inv_error_t inv_get_6axis_quaternion(long *data)
+inv_error_t inv_get_6axis_quaternion(long *data, inv_time_t *timestamp)
 {
     memcpy(data, rh.gam_quat, sizeof(rh.gam_quat));
+    *timestamp = rh.gam_timestamp;
     return INV_SUCCESS;
 }
 
@@ -230,6 +291,21 @@ inv_error_t inv_get_quaternion(long *data)
         rh.status &= ~(INV_COMPASS_CORRECTION_SET | INV_6_AXIS_QUAT_SET);
     }
     memcpy(data, rh.nav_quat, sizeof(rh.nav_quat));
+    return INV_SUCCESS;
+}
+
+/** Returns a quaternion based only on compass and accel.
+ * @param[out] data 6-axis  compass and accel quaternion scaled such that 1.0 = 2^30.
+ * @return Returns INV_SUCCESS if successful or an error code if not.
+ */
+inv_error_t inv_get_geomagnetic_quaternion(long *data, inv_time_t *timestamp)
+{
+   if (rh.status & INV_GEOMAGNETIC_CORRECTION_SET) {
+        inv_q_mult(rh.geomag_compass_correction, rh.accel_quat, rh.geomag_quat);
+        rh.status &= ~(INV_GEOMAGNETIC_CORRECTION_SET);
+    }
+    memcpy(data, rh.geomag_quat, sizeof(rh.geomag_quat));
+    *timestamp = rh.geomag_timestamp;
     return INV_SUCCESS;
 }
 
@@ -304,6 +380,9 @@ inv_error_t inv_init_results_holder(void)
     rh.compass_correction[0] = 1L<<30;
     rh.gam_quat[0] = 1L<<30;
     rh.nav_quat[0] = 1L<<30;
+    rh.geomag_quat[0] = 1L<<30;
+    rh.accel_quat[0] = 1L<<30;
+    rh.geomag_compass_correction[0] = 1L<<30;
     rh.quat_confidence_interval = (float)M_PI;
     return INV_SUCCESS;
 }
@@ -493,6 +572,22 @@ void inv_set_heading_confidence_interval(float ci)
 float inv_get_heading_confidence_interval(void)
 {
     return rh.quat_confidence_interval;
+}
+
+/** Set 6 axis (accel and compass) 95% heading confidence interval for quaternion
+* @param[in] ci Confidence interval in radians.
+*/
+void inv_set_accel_compass_confidence_interval(float ci)
+{
+    rh.geo_mag_confidence_interval = ci;
+}
+
+/** Get 6 axis (accel and compass) 95% heading confidence interval for quaternion
+* @return Confidence interval in radians.
+*/
+float inv_get_accel_compass_confidence_interval(void)
+{
+    return rh.geo_mag_confidence_interval;
 }
 
 /**

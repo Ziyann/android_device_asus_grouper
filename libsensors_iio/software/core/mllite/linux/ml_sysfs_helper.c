@@ -1,8 +1,15 @@
+#undef MPL_LOG_NDEBUG
+#define MPL_LOG_NDEBUG 0 /* Use 0 to turn on MPL_LOGV output */
+#undef MPL_LOG_TAG
+#define MPL_LOG_TAG "MLLITE"
+
 #include <string.h>
 #include <stdio.h>
 #include "ml_sysfs_helper.h"
 #include <dirent.h>
 #include <ctype.h>
+#include "log.h"
+
 #define MPU_SYSFS_ABS_PATH "/sys/class/invensense/mpu"
 
 enum PROC_SYSFS_CMD {
@@ -19,7 +26,11 @@ static char *chip_name[] = {
     "MPU6050", 
     "MPU9150", 
     "MPU3050", 
-    "MPU6500"
+    "MPU6500",
+    "MPU9250",
+    "MPU6XXX",
+    "MPU9350",
+    "MPU6515",
 };
 static int chip_ind;
 static int initialized =0;
@@ -55,7 +66,7 @@ int find_type_by_name(const char *name, const char *type)
 
 	dp = opendir(iio_dir);
 	if (dp == NULL) {
-		printf("No industrialio devices available");
+		MPL_LOGE("No industrialio devices available");
 		return -ENODEV;
 	}
 
@@ -218,7 +229,7 @@ static void init_iio() {
 		for (i=0; i<strlen(chip_name[j]); i++) {
 			iio_chip[i] = tolower(chip_name[j][i]);
 		}
-		iio_chip[strlen(chip_name[0])] = '\0';
+		iio_chip[strlen(chip_name[j])] = '\0';
 		dev_num = find_type_by_name(iio_chip, "iio:device");
 		if(dev_num >= 0) {
 			iio_initialized = 1;
@@ -287,6 +298,98 @@ static int process_sysfs_request(enum PROC_SYSFS_CMD cmd, char *data)
 	}
 	return 0;
 }
+
+int find_name_by_sensor_type(const char *sensor_type, const char *type, char *sensor_name)
+{
+    const struct dirent *ent;
+    int number, numstrlen;
+
+    FILE *nameFile;
+    DIR *dp;
+    char *filename;
+
+    dp = opendir(iio_dir);
+    if (dp == NULL) {
+        MPL_LOGE("No industrialio devices available");
+        return -ENODEV;
+    }
+
+    while (ent = readdir(dp), ent != NULL) {
+        if (strcmp(ent->d_name, ".") != 0 &&
+            strcmp(ent->d_name, "..") != 0 &&
+            strlen(ent->d_name) > strlen(type) &&
+            strncmp(ent->d_name, type, strlen(type)) == 0) {
+            numstrlen = sscanf(ent->d_name + strlen(type),
+                       "%d",
+                       &number);
+            /* verify the next character is not a colon */
+            if (strncmp(ent->d_name + strlen(type) + numstrlen,
+                    ":",
+                    1) != 0) {
+                filename = malloc(strlen(iio_dir)
+                        + strlen(type)
+                        + numstrlen
+                        + 6
+                        + strlen(sensor_type));
+                if (filename == NULL)
+                    return -ENOMEM;
+                sprintf(filename, "%s%s%d/%s",
+                    iio_dir,
+                    type,
+                    number,
+                    sensor_type);
+                nameFile = fopen(filename, "r");
+                MPL_LOGI("sensor type path: %s\n", filename);
+                free(filename);
+                //fscanf(nameFile, "%s", thisname);
+                //if (strcmp(name, thisname) == 0) {
+                if(nameFile == NULL) {
+                    MPL_LOGI("keeps searching");
+                    continue;
+                } else{
+                    MPL_LOGI("found directory");
+                }
+                filename = malloc(strlen(iio_dir)
+                        + strlen(type)
+                        + numstrlen
+                        + 6);
+                sprintf(filename, "%s%s%d/name",
+                    iio_dir,
+                    type,
+                    number);
+                    nameFile = fopen(filename, "r");
+                    MPL_LOGI("name path: %s\n", filename);
+                    free(filename);
+                    if (!nameFile)
+                        continue;
+                    fscanf(nameFile, "%s", sensor_name);
+                    MPL_LOGI("name found: %s now test for mpuxxxx", sensor_name);
+                    if( !strncmp("mpu",sensor_name, 3) ) {                      
+                        char secondaryFileName[200];                    
+                    sprintf(secondaryFileName, "%s%s%d/secondary_name",
+                        iio_dir,
+                        type,
+                        number);
+                        nameFile = fopen(secondaryFileName, "r");
+                        MPL_LOGI("name path: %s\n", secondaryFileName); 
+                        if(!nameFile)
+                            continue;
+                        fscanf(nameFile, "%s", sensor_name);
+                        MPL_LOGI("secondary name found: %s\n", sensor_name);
+                    }
+                    else {
+                        fscanf(nameFile, "%s", sensor_name);
+                        MPL_LOGI("name found: %s\n", sensor_name);
+                    }
+                    return 0;
+                //}
+                fclose(nameFile);
+            }
+        }
+    }
+    return -ENODEV;
+}
+
 /** 
  *  @brief  return sysfs key. if the key is not available
  *          return false. So the return value must be checked
@@ -399,7 +502,7 @@ inv_error_t  inv_get_input_number(const char *name, int *num)
  *           name. It should be zeroed before calling this function.
  *           Or it could have unpredicable result.
  */
-inv_error_t inv_get_iio_trigger_path(char *name)
+inv_error_t inv_get_iio_trigger_path(const char *name)
 {
 	if (process_sysfs_request(CMD_GET_TRIGGER_PATH, (char *)name) < 0)
 		return INV_ERROR_NOT_OPENED;
@@ -414,7 +517,7 @@ inv_error_t inv_get_iio_trigger_path(char *name)
  *           node. It should be zeroed before calling this function.
  *           Or it could have unpredicable result.
  */
-inv_error_t inv_get_iio_device_node(char *name)
+inv_error_t inv_get_iio_device_node(const char *name)
 {
 	if (process_sysfs_request(CMD_GET_DEVICE_NODE, (char *)name) < 0)
 		return INV_ERROR_NOT_OPENED;

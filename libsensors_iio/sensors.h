@@ -40,10 +40,18 @@ enum {
     ID_RG,
     ID_A,
     ID_M,
+    ID_RM,
+    ID_PS,
     ID_O,
     ID_RV,
+    ID_GRV,
     ID_LA,
     ID_GR,
+    ID_SM,
+    ID_P,
+    ID_SC,
+    ID_GMRV,
+    ID_FC,
     ID_SO
 };
 
@@ -83,7 +91,7 @@ enum {
 #define CONVERT_A_Y                 (CONVERT_A)
 #define CONVERT_A_Z                 (CONVERT_A)
 
-/* Compass AKM8975 */
+/* AKM  compasses */
 #define EVENT_TYPE_MAGV_X           ABS_RX
 #define EVENT_TYPE_MAGV_Y           ABS_RY
 #define EVENT_TYPE_MAGV_Z           ABS_RZ

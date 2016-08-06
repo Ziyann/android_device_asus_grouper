@@ -14,6 +14,10 @@
  *       @file storage_manager.c
  *       @brief Load and Store Manager.
  */
+#undef MPL_LOG_NDEBUG
+#define MPL_LOG_NDEBUG 0 /* Use 0 to turn on MPL_LOGV output */
+#undef MPL_LOG_TAG
+#define MPL_LOG_TAG "MLLITE"
 
 #include <string.h>
 
@@ -127,18 +131,20 @@ inv_error_t inv_load_mpl_states(const unsigned char *data, size_t length)
     long len;
 
     len = length; // Important so we get negative numbers
+    if (data == NULL || len == 0)
+        return INV_SUCCESS;
     if (len < sizeof(struct data_header_t))
-        return INV_ERROR_CALIBRATION_LOAD;	// No data
+        return INV_ERROR_CALIBRATION_LOAD;  // No data
     hd = (struct data_header_t *)data;
     if (hd->key != DEFAULT_KEY)
-        return INV_ERROR_CALIBRATION_LOAD;	// Key changed or data corruption
+        return INV_ERROR_CALIBRATION_LOAD;  // Key changed or data corruption
     len = MIN(hd->size, len);
     len = hd->size;
     len -= sizeof(struct data_header_t);
     data += sizeof(struct data_header_t);
     checksum = inv_checksum(data, len);
     if (checksum != hd->checksum)
-        return INV_ERROR_CALIBRATION_LOAD;	// Data corruption
+        return INV_ERROR_CALIBRATION_LOAD;  // Data corruption
 
     while (len > (long)sizeof(struct data_header_t)) {
         hd = (struct data_header_t *)data;
@@ -146,14 +152,12 @@ inv_error_t inv_load_mpl_states(const unsigned char *data, size_t length)
         data += sizeof(struct data_header_t);
         len -= sizeof(struct data_header_t);
         if (entry >= 0 && len >= hd->size) {
-            if (hd->size == ds.hd[entry].size) {
-                checksum = inv_checksum(data, hd->size);
-                if (checksum == hd->checksum) {
-                    ds.load[entry](data);
-                } else {
-                    return INV_ERROR_CALIBRATION_LOAD;
-                }
-            }
+            if (hd->size != ds.hd[entry].size)
+                return INV_ERROR_CALIBRATION_LEN;
+            checksum = inv_checksum(data, hd->size);
+            if (checksum != hd->checksum)
+                return INV_ERROR_CALIBRATION_LOAD;
+            ds.load[entry](data);
         }
         len -= hd->size;
         if (len >= 0)
@@ -175,6 +179,8 @@ inv_error_t inv_save_mpl_states(unsigned char *data, size_t sz)
     int kk;
     struct data_header_t *hd;
 
+    if (data == NULL || sz == 0)
+        return INV_ERROR_CALIBRATION_LOAD;
     if (sz >= ds.total_size) {
         cur = data + sizeof(struct data_header_t);
         for (kk = 0; kk < ds.num; ++kk) {

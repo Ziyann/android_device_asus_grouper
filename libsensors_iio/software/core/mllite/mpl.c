@@ -21,6 +21,7 @@
 #include "data_builder.h"
 #include "results_holder.h"
 #include "mlinclude.h"
+#include "message_layer.h"
 
 /**
  * @brief  Initializes the MPL. Should be called first and once 
@@ -38,10 +39,14 @@ inv_error_t inv_init_mpl(void)
 
     INV_ERROR_CHECK(inv_enable_results_holder());
 
+    // Get any left over messages and clear them. Throw message away as it is not
+    // initialized.
+    (void)inv_get_message_level_0(1);
+
     return INV_SUCCESS;
 }
 
-const char ml_ver[] = "InvenSense MPL 5.1.2 beta RC9";
+const char ml_ver[] = "InvenSense MA 5.1.6 RC54";
 
 /**
  *  @brief  used to get the MPL version.

@@ -14,6 +14,8 @@
 extern "C" {
 #endif
 
+#define ACCELERATION_SQUARE_1P5G   9663676416LL
+#define ACCELERATION_SQUARE_1P2G   6184752906LL
 inv_error_t inv_enable_quaternion(void);
 inv_error_t inv_disable_quaternion(void);
 inv_error_t inv_init_quaternion(void);

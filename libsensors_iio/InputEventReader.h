@@ -35,6 +35,7 @@ class InputEventCircularReader
     struct input_event* mHead;
     struct input_event* mCurr;
     ssize_t mFreeSpace;
+    int mLastFd;
 
 public:
     InputEventCircularReader(size_t numEvents);

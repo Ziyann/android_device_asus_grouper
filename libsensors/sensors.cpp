@@ -40,9 +40,9 @@
 /* The SENSORS Module */
 
 #ifdef ENABLE_DMP_SCREEN_AUTO_ROTATION
-#define GLOBAL_SENSORS (MPLSensor::numSensors + 1)
+#define GLOBAL_SENSORS (MPLSensor::NumSensors + 1)
 #else
-#define GLOBAL_SENSORS MPLSensor::numSensors
+#define GLOBAL_SENSORS MPLSensor::NumSensors
 #endif
 
 #define LOCAL_SENSORS (1)
@@ -294,13 +294,14 @@ int sensors_poll_context_t::pollEvents(sensors_event_t *data, int count)
                 nb = 0;
                 if (i == compass) {
                     /* result is hardcoded to 0 */
-                    ((MPLSensor*) sensor)->readCompassEvents(NULL, count);
-                    nb = ((MPLSensor*) mSensors[mpl])->executeOnData(data, count);
+                    ((MPLSensor*) sensor)->buildCompassEvent();
+                    mPollFds[i].revents = 0;
+                    nb = ((MPLSensor*) sensor)->readEvents(data, count);
                 } else if (i == mpl) {
                     /* result is hardcoded to 0 */
-                    sensor->readEvents(NULL, count);
-                    nb = ((MPLSensor*) sensor)->executeOnData(data, count);
+                    ((MPLSensor*) sensor)->buildMpuEvent();
                     mPollFds[i].revents = 0;
+                    nb = ((MPLSensor*) sensor)->readEvents(data, count);
                 }
 #ifdef ENABLE_DMP_DISPL_ORIENT_FEAT
                 else if (i == dmpOrient) {

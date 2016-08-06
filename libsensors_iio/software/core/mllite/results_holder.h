@@ -25,6 +25,7 @@ extern "C" {
 #define ACC_MAG_SQR_SHIFT 16
 
 void inv_store_gaming_quaternion(const long *quat, inv_time_t timestamp);
+void inv_store_accel_quaternion(const long *quat, inv_time_t timestamp);
 
 // States
 #define SF_NORMAL 0
@@ -39,10 +40,15 @@ void inv_set_acc_state(int state);
 int inv_get_motion_state(unsigned int *cntr);
 void inv_set_motion_state(unsigned char state);
 inv_error_t inv_get_gravity(long *data);
-inv_error_t inv_get_6axis_quaternion(long *data);
+inv_error_t inv_get_gravity_6x(long *data);
+inv_error_t inv_get_6axis_quaternion(long *data, inv_time_t *timestamp);
 inv_error_t inv_get_quaternion(long *data);
 inv_error_t inv_get_quaternion_float(float *data);
 void inv_get_quaternion_set(long *data, int *accuracy, inv_time_t *timestamp);
+inv_error_t inv_get_accel_quaternion(long *data);
+inv_error_t inv_get_geomagnetic_quaternion(long *data, inv_time_t *timestamp);
+void inv_set_geomagnetic_compass_correction(const long *data, inv_time_t timestamp);
+void inv_get_geomagnetic_compass_correction(long *data, inv_time_t *timestamp);
 
 inv_error_t inv_enable_results_holder();
 inv_error_t inv_init_results_holder(void);
@@ -69,6 +75,9 @@ inv_error_t inv_get_gyro_float(float *data);
 inv_error_t inv_get_linear_accel_float(float *data);
 void inv_set_heading_confidence_interval(float ci);
 float inv_get_heading_confidence_interval(void);
+
+void inv_set_accel_compass_confidence_interval(float ci);
+float inv_get_accel_compass_confidence_interval(void);
 
 int inv_got_accel_bias();
 void inv_set_accel_bias_found(int state);

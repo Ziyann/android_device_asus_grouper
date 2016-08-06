@@ -6,6 +6,7 @@ MK_NAME = $(notdir $(CURDIR)/$(firstword $(MAKEFILE_LIST)))
 CROSS ?= $(ANDROID_ROOT)/prebuilt/linux-x86/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
 COMP  ?= $(CROSS)gcc
 LINK  ?= $(CROSS)gcc
+STRIP ?= $(CROSS)strip -g
 
 OBJFOLDER = $(CURDIR)/obj
 
@@ -71,6 +72,7 @@ mpl: $(LIBRARY) $(MK_NAME)
 $(LIBRARY) : $(OBJFOLDER) $(INV_OBJS_DST) $(MK_NAME)
 	@$(call echo_in_colors, "\n<linking $(LIBRARY) with objects $(INV_OBJS_DST)\n")
 	$(LINK) $(LFLAGS) -o $(LIBRARY) $(INV_OBJS_DST) $(LLINK) $(INV_LIBS) $(LLINK)
+	$(STRIP) -g $(LIBRARY)
 
 $(OBJFOLDER) :
 	@$(call echo_in_colors, "\n<creating object's folder 'obj/'>\n")

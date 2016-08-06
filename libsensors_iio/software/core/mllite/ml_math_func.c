@@ -546,7 +546,7 @@ uint32_t inv_checksum(const unsigned char *str, int len)
 
     for (i = 0; i < len; i++) {
         c = *(str + i);
-        hash = ((hash << 5) + hash) + c;	/* hash * 33 + c */
+        hash = ((hash << 5) + hash) + c;    /* hash * 33 + c */
     }
 
     return hash;
@@ -569,7 +569,7 @@ static unsigned short inv_row_2_scale(const signed char *row)
     else if (row[2] < 0)
         b = 6;
     else
-        b = 7;		// error
+        b = 7;  // error
     return b;
 }
 
@@ -600,7 +600,6 @@ unsigned short inv_orientation_matrix_to_scalar(const signed char *mtx)
     scalar = inv_row_2_scale(mtx);
     scalar |= inv_row_2_scale(mtx + 3) << 3;
     scalar |= inv_row_2_scale(mtx + 6) << 6;
-
 
     return scalar;
 }
@@ -637,7 +636,9 @@ void inv_convert_to_chip(unsigned short orientation, const long *input, long *ou
 * @param[in] input Input vector, length 3
 * @param[out] output Output vector, length 3
 */
-void inv_convert_to_body_with_scale(unsigned short orientation, long sensitivity, const long *input, long *output)
+void inv_convert_to_body_with_scale(unsigned short orientation,
+                                    long sensitivity,
+                                    const long *input, long *output)
 {
     output[0] = inv_q30_mult(input[orientation & 0x03] *
                              SIGNSET(orientation & 0x004), sensitivity);
@@ -648,8 +649,8 @@ void inv_convert_to_body_with_scale(unsigned short orientation, long sensitivity
 }
 
 /** find a norm for a vector
-* @param[in] x a vector [3x1]
-* @return the normalize vector.
+* @param[in] a vector [3x1]
+* @param[out] output the norm of the input vector
 */
 double inv_vector_norm(const float *x)
 {
@@ -701,6 +702,377 @@ void inv_get_cross_product_vec(float *cgcross, float compass[3], float grav[3]) 
     cgcross[2] = (float)compass[0] * grav[1] - (float)compass[1] * grav[0];
 }
 
+void mlMatrixVectorMult(long matrix[9], const long vecIn[3], long *vecOut)  {
+        // matrix format
+        //  [ 0  3  6;
+        //    1  4  7;
+        //    2  5  8]
+
+        // vector format:  [0  1  2]^T;
+        int i, j;
+        long temp;
+
+        for (i=0; i<3; i++)	{
+                temp = 0;
+                for (j=0; j<3; j++)  {
+                        temp += inv_q30_mult(matrix[i+j*3], vecIn[j]);
+                }
+                vecOut[i] = temp;
+        }
+}
+
+//============== 1/sqrt(x), 1/x, sqrt(x) Functions ================================
+
+/** Calculates 1/square-root of a fixed-point number (30 bit mantissa, positive): Q1.30
+* Input must be a positive scaled (2^30) integer
+* The number is scaled to lie between a range in which a Newton-Raphson
+* iteration works best. Corresponding square root of the power of two is returned.
+*  Caller must scale final result by 2^rempow (while avoiding overflow).
+* @param[in] x0, length 1
+* @param[out] rempow, length 1
+* @return scaledSquareRoot on success or zero.
+*/
+long inv_inverse_sqrt(long x0, int*rempow)
+{
+	//% Inverse sqrt NR in the neighborhood of 1.3>x>=0.65
+	//% x(k+1) = x(k)*(3 - x0*x(k)^2)
+
+	//% Seed equals 1. Works best in this region.
+	//xx0 = int32(1*2^30);
+
+	long oneoversqrt2, oneandhalf, x0_2;
+	unsigned long xx;
+	int pow2, sq2scale, nr_iters;
+	//long upscale, sqrt_upscale, upsclimit;
+	//long downscale, sqrt_downscale, downsclimit;
+
+	// Precompute some constants for efficiency
+	//% int32(2^30*1/sqrt(2))
+	oneoversqrt2=759250125L;
+	//% int32(1.5*2^30);
+	oneandhalf=1610612736L;
+
+	//// Further scaling into optimal region saves one or more NR iterations. Maps into region (.9, 1.1)
+	//// int32(0.9/log(2)*2^30)
+	//upscale = 1394173804L;
+	//// int32(sqrt(0.9/log(2))*2^30)
+	//sqrt_upscale = 1223512453L;
+	// // int32(1.1*log(2)/.9*2^30)
+	//upsclimit = 909652478L;
+	//// int32(1.1/log(4)*2^30)
+	//downscale = 851995103L;
+	//// int32(sqrt(1.1/log(4))*2^30)
+	//sqrt_downscale = 956463682L;
+	// // int32(0.9*log(4)/1.1*2^30)
+	//downsclimit = 1217881829L;
+
+	nr_iters = test_limits_and_scale(&x0, &pow2);
+
+	sq2scale=pow2%2;  // Find remainder. Is it even or odd?
+
+	
+	// Further scaling to decrease NR iterations
+	// With the mapping below, 89% of calculations will require 2 NR iterations or less.
+	// TBD
+
+
+	x0_2 = x0 >>1; // This scaling incorporates factor of 2 in NR iteration below.
+	// Initial condition starts at 1: xx=(1L<<30);
+	// First iteration is simple: Instead of initializing xx=1, assign to result of first iteration:
+	// xx= (3/2-x0/2);
+	//% NR formula: xx=xx*(3/2-x0*xx*xx/2); = xx*(1.5 - (x0/2)*xx*xx)
+	// Initialize NR (first iteration). Note we are starting with xx=1, so the first iteration becomes an initialization.
+	xx = oneandhalf - x0_2;
+ 	if ( nr_iters>=2 ) {
+		// Second NR iteration
+		xx = inv_q30_mult( xx, ( oneandhalf - inv_q30_mult(x0_2, inv_q30_mult(xx,xx) ) ) );
+		if ( nr_iters==3 ) {
+			// Third NR iteration. 
+			xx = inv_q30_mult( xx, ( oneandhalf - inv_q30_mult(x0_2, inv_q30_mult(xx,xx) ) ) );
+			// Fourth NR iteration: Not needed due to single precision.
+		}
+	}
+	if (sq2scale) {
+		*rempow = (pow2>>1) + 1; // Account for sqrt(2) in denominator, note we multiply if s2scale is true
+		return (inv_q30_mult(xx,oneoversqrt2));
+	}
+	else {
+		*rempow = pow2>>1;
+		return xx;
+	}
+}
+
+
+/** Calculates square-root of a fixed-point number (30 bit mantissa, positive)
+* Input must be a positive scaled (2^30) integer
+* The number is scaled to lie between a range in which a Newton-Raphson
+* iteration works best.
+* @param[in] x0, length 1
+* @return scaledSquareRoot on success or zero. **/
+long inv_fast_sqrt(long x0)
+{
+
+	//% Square-Root with NR in the neighborhood of 1.3>x>=0.65 (log(2) <= x <= log(4) )
+    // Two-variable NR iteration:
+    // Initialize: a=x; c=x-1;  
+    // 1st Newton Step:  a=a-a*c/2; ( or: a = x - x*(x-1)/2  )
+    // Iterate: c = c*c*(c-3)/4
+    //          a = a - a*c/2    --> reevaluating c at this step gives error of approximation
+
+	//% Seed equals 1. Works best in this region.
+	//xx0 = int32(1*2^30);
+
+	long sqrt2, oneoversqrt2, one_pt5;
+	long xx, cc;
+	int pow2, sq2scale, nr_iters;
+
+	// Return if input is zero. Negative should really error out. 
+	if (x0 <= 0L) {
+		return 0L;
+	}
+
+	sqrt2 =1518500250L;
+	oneoversqrt2=759250125L;
+	one_pt5=1610612736L;
+
+	nr_iters = test_limits_and_scale(&x0, &pow2);
+	
+	sq2scale = 0;
+	if (pow2 > 0) 
+		sq2scale=pow2%2;  // Find remainder. Is it even or odd?
+	pow2 = pow2-sq2scale; // Now pow2 is even. Note we are adding because result is scaled with sqrt(2)
+
+	// Sqrt 1st NR iteration
+	cc = x0 - (1L<<30);
+	xx = x0 - (inv_q30_mult(x0, cc)>>1);
+ 	if ( nr_iters>=2 ) {
+		// Sqrt second NR iteration
+		// cc = cc*cc*(cc-3)/4; = cc*cc*(cc/2 - 3/2)/2;
+		// cc = ( cc*cc*((cc>>1) - onePt5) ) >> 1
+		cc = inv_q30_mult( cc, inv_q30_mult(cc, (cc>>1) - one_pt5) ) >> 1;
+		xx = xx - (inv_q30_mult(xx, cc)>>1);
+		if ( nr_iters==3 ) {
+			// Sqrt third NR iteration
+			cc = inv_q30_mult( cc, inv_q30_mult(cc, (cc>>1) - one_pt5) ) >> 1;
+			xx = xx - (inv_q30_mult(xx, cc)>>1);
+		}
+	}
+	if (sq2scale)
+		xx = inv_q30_mult(xx,oneoversqrt2);
+	// Scale the number with the half of the power of 2 scaling
+	if (pow2>0)
+		xx = (xx >> (pow2>>1)); 
+	else if (pow2 == -1)
+		xx = inv_q30_mult(xx,sqrt2);
+	return xx;
+}
+
+/** Calculates 1/x of a fixed-point number (30 bit mantissa)
+* Input must be a scaled (2^30) integer (+/-)
+* The number is scaled to lie between a range in which a Newton-Raphson
+* iteration works best. Corresponding multiplier power of two is returned.
+*  Caller must scale final result by 2^pow (while avoiding overflow).
+* @param[in] x, length 1
+* @param[out] pow, length 1
+* @return scaledOneOverX on success or zero.
+*/
+long inv_one_over_x(long x0, int*pow)
+{
+	//% NR for 1/x in the neighborhood of log(2) => x => log(4)
+	//%    y(k+1)=y(k)*(2 \ 96 x0*y(k))
+    //% with y(0) = 1 as the starting value for NR
+
+	long two, xx;
+	int numberwasnegative, nr_iters, did_upscale, did_downscale;
+
+	long upscale, downscale, upsclimit, downsclimit;
+
+	*pow = 0;
+	// Return if input is zero. 
+	if (x0 == 0L) {
+		return 0L;
+	}
+
+	// This is really (2^31-1), i.e. 1.99999... .
+	// Approximation error is 1e-9. Note 2^31 will overflow to sign bit, so it can't be used here.
+	two = 2147483647L; 
+
+	// int32(0.92/log(2)*2^30)
+	upscale = 1425155444L;
+	// int32(1.08/upscale*2^30) 
+	upsclimit = 873697834L;
+
+	// int32(1.08/log(4)*2^30)
+	downscale = 836504283L;
+	// int32(0.92/downscale*2^30) 
+	downsclimit = 1268000423L;
+
+	// Algorithm is intended to work with positive numbers only. Change sign:
+	numberwasnegative = 0;
+	if (x0 < 0L) {
+		numberwasnegative = 1;
+		x0 = -x0;
+	}
+
+	nr_iters = test_limits_and_scale(&x0, pow);
+
+	did_upscale=0;
+	did_downscale=0;
+	// Pre-scaling to reduce NR iterations and improve accuracy:
+	if (x0<=upsclimit) {
+		x0 = inv_q30_mult(x0, upscale);
+		did_upscale = 1;
+		// The scaling ALWAYS leaves the number in the 2-NR iterations region:
+		nr_iters = 2;
+		// Is x0 in the single NR iteration region (0.994, 1.006) ?
+		if (x0 > 1067299373 && x0 < 1080184275)
+			nr_iters = 1;
+	} else if (x0>=downsclimit) {
+		x0 = inv_q30_mult(x0, downscale);
+		did_downscale = 1;
+		// The scaling ALWAYS leaves the number in the 2-NR iterations region:
+		nr_iters = 2;
+		// Is x0 in the single NR iteration region (0.994, 1.006) ?
+		if (x0 > 1067299373 && x0 < 1080184275)
+			nr_iters = 1;
+	}
+
+	xx = (two - x0) + 1; // Note 2 will overflow so the computation (2-x) is done with "two" == (2^30-1)
+	// First NR iteration
+	xx = inv_q30_mult( xx, (two - inv_q30_mult(x0, xx)) + 1 );
+ 	if ( nr_iters>=2 ) {
+		// Second NR iteration
+		xx = inv_q30_mult( xx, (two - inv_q30_mult(x0, xx)) + 1 );
+		if ( nr_iters==3 ) {
+			// THird NR iteration. 
+			xx = inv_q30_mult( xx, (two - inv_q30_mult(x0, xx)) + 1 );
+			// Fourth NR iteration: Not needed due to single precision.
+		}
+	}
+
+	// Post-scaling
+	if (did_upscale)
+		xx = inv_q30_mult( xx, upscale);
+	else if (did_downscale)
+		xx = inv_q30_mult( xx, downscale);
+
+	if (numberwasnegative) 
+		xx = -xx;
+	return xx;
+}
+
+/** Auxiliary function used by inv_OneOverX(), inv_fastSquareRoot(), inv_inverseSqrt().
+* Finds the range of the argument, determines the optimal number of Newton-Raphson
+* iterations and . Corresponding square root of the power of two is returned.
+* Restrictions: Number is represented as Q1.30.
+*               Number is betweeen the range 2<x<=0
+* @param[in] x, length 1
+* @param[out] pow, length 1
+* @return # of NR iterations, x0 scaled between log(2) and log(4) and 2^N scaling (N=pow)
+*/
+int test_limits_and_scale(long *x0, int *pow)
+{
+	long lowerlimit, upperlimit, oneiterlothr, oneiterhithr, zeroiterlothr, zeroiterhithr;
+
+	// Lower Limit: ll = int32(log(2)*2^30);
+	lowerlimit = 744261118L;
+	//Upper Limit ul = int32(log(4)*2^30);
+	upperlimit = 1488522236L;
+	//  int32(0.9*2^30)
+	oneiterlothr = 966367642L;
+	// int32(1.1*2^30)
+	oneiterhithr = 1181116006L;
+	// int32(0.99*2^30)
+	zeroiterlothr=1063004406L;
+	//int32(1.01*2^30)
+	zeroiterhithr=1084479242L;
+
+	// Scale number such that Newton Raphson iteration works best:
+	// Find the power of two scaling that leaves the number in the optimal range,
+	// ll <= number <= ul. Note odd powers have special scaling further below
+	if (*x0 > upperlimit) {
+		// Halving the number will push it in the optimal range since largest value is 2
+		*x0 = *x0>>1;
+		*pow=-1;
+	} else if (*x0 < lowerlimit) {
+		// Find position of highest bit, counting from left, and scale number 
+		*pow=get_highest_bit_position((unsigned long*)x0);
+		if (*x0 >= upperlimit) {
+			// Halving the number will push it in the optimal range
+			*x0 = *x0>>1;
+			*pow=*pow-1;
+		}
+		else if (*x0 < lowerlimit) {
+			// Doubling the number will push it in the optimal range
+			*x0 = *x0<<1;
+			*pow=*pow+1;
+		}
+	} else {
+		*pow = 0;
+	}
+
+	if ( *x0<oneiterlothr || *x0>oneiterhithr )
+		return 3; // 3 NR iterations
+	if ( *x0<zeroiterlothr || *x0>zeroiterhithr )
+		return 2; // 2 NR iteration
+
+	return 1; // 1 NR iteration
+}
+
+/** Auxiliary function used by testLimitsAndScale()
+* Find the highest nonzero bit in an unsigned 32 bit integer:
+* @param[in] value, length 1.
+* @return highes bit position.
+**/int get_highest_bit_position(unsigned long *value)
+{
+    int position;
+    position = 0;
+    if (*value == 0) return 0;
+
+    if ((*value & 0xFFFF0000) == 0) {
+		position += 16;
+		*value=*value<<16;
+	}
+    if ((*value & 0xFF000000) == 0) {
+		position += 8;
+		*value=*value<<8;
+	}
+    if ((*value & 0xF0000000) == 0) {
+		position += 4;
+		*value=*value<<4;
+	}
+    if ((*value & 0xC0000000) == 0) {
+		position += 2;
+		*value=*value<<2;
+	}
+
+	// If we got too far into sign bit, shift back. Note we are using an
+	// unsigned long here, so right shift is going to shift all the bits.
+    if ((*value & 0x80000000)) { 
+		position -= 1;
+		*value=*value>>1;
+	}
+    return position;
+}
+
+/* compute real part of quaternion, element[0]
+@param[in]  inQuat, 3 elements gyro quaternion
+@param[out] outquat, 4 elements gyro quaternion
+*/
+int inv_compute_scalar_part(const long * inQuat, long* outQuat)
+{
+    long scalarPart = 0;
+
+    scalarPart = inv_fast_sqrt((1L<<30) - inv_q30_mult(inQuat[0], inQuat[0])
+                                        - inv_q30_mult(inQuat[1], inQuat[1])
+                                        - inv_q30_mult(inQuat[2], inQuat[2]) );
+                outQuat[0] = scalarPart;
+                outQuat[1] = inQuat[0];
+                outQuat[2] = inQuat[1];
+                outQuat[3] = inQuat[2];
+
+                return 0;
+}
 /**
  * @}
  */

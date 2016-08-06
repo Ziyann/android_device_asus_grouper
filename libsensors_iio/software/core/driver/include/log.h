@@ -56,6 +56,10 @@
 extern "C" {
 #endif
 
+#if defined ANDROID_JELLYBEAN
+#define LOG ALOG
+#define LOG_ERRROR ANDROID_LOG_ERROR
+#endif
 
 /* --------------------------------------------------------------------- */
 
@@ -288,7 +292,7 @@ extern "C" {
 #ifndef MPL_LOG_PRI
 #ifdef ANDROID
 #define MPL_LOG_PRI(priority, tag, fmt, ...) \
-	ALOG(priority, tag, fmt, ##__VA_ARGS__)
+	LOG(priority, tag, fmt, ##__VA_ARGS__)
 #elif defined __KERNEL__
 #define MPL_LOG_PRI(priority, tag, fmt, ...) \
 	pr_debug(MPL_##priority tag fmt, ##__VA_ARGS__)

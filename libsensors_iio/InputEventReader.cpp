@@ -16,9 +16,9 @@
 
 #define LOG_NDEBUG 0
 
-#include <string.h>
 #include <stdint.h>
 #include <errno.h>
+#include <string.h>
 #include <unistd.h>
 #include <poll.h>
 
@@ -30,7 +30,6 @@
 #include <cutils/log.h>
 
 #include "InputEventReader.h"
-#include "local_log_def.h"
 
 /*****************************************************************************/
 
@@ -43,6 +42,7 @@ InputEventCircularReader::InputEventCircularReader(size_t numEvents)
       mCurr(mBuffer),
       mFreeSpace(numEvents)
 {
+    mLastFd = -1;
 }
 
 InputEventCircularReader::~InputEventCircularReader()
@@ -54,6 +54,8 @@ InputEventCircularReader::~InputEventCircularReader()
 ssize_t InputEventCircularReader::fill(int fd)
 {
     size_t numEventsRead = 0;
+    mLastFd = fd;
+
     LOGV_IF(INPUT_EVENT_DEBUG, 
             "DEBUG:%s enter, fd=%d\n", __PRETTY_FUNCTION__, fd);
     if (mFreeSpace) {
@@ -85,7 +87,8 @@ ssize_t InputEventCircularReader::fill(int fd)
         }
     }
 
-    LOGV_IF(INPUT_EVENT_DEBUG, "DEBUG:%s exit\n", __PRETTY_FUNCTION__);
+    LOGV_IF(INPUT_EVENT_DEBUG, "DEBUG:%s exit, numEventsRead:%d\n", 
+            __PRETTY_FUNCTION__, numEventsRead);
     return numEventsRead;
 }
 
@@ -93,7 +96,9 @@ ssize_t InputEventCircularReader::readEvent(input_event const** events)
 {
     *events = mCurr;
     ssize_t available = (mBufferEnd - mBuffer) - mFreeSpace;
-    return available ? 1 : 0;
+    LOGV_IF(INPUT_EVENT_DEBUG, "DEBUG:%s fd:%d, available:%d\n", 
+            __PRETTY_FUNCTION__, mLastFd, (int)available);
+    return (available ? 1 : 0);
 }
 
 void InputEventCircularReader::next()
@@ -103,4 +108,8 @@ void InputEventCircularReader::next()
     if (mCurr >= mBufferEnd) {
         mCurr = mBuffer;
     }
+    ssize_t available = (mBufferEnd - mBuffer) - mFreeSpace;
+    LOGV_IF(INPUT_EVENT_DEBUG, "DEBUG:%s fd:%d, still available:%d\n",
+            __PRETTY_FUNCTION__, mLastFd, (int)available);
 }
+

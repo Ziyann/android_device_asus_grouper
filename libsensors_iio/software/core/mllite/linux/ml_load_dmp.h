@@ -26,6 +26,7 @@ extern "C" {
     APIs
 */
 inv_error_t inv_load_dmp(FILE  *fd);
+void read_dmp_img(char *dmp_path, char *out_file);
 
 #ifdef __cplusplus
 }

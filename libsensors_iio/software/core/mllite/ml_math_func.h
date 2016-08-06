@@ -114,6 +114,15 @@ extern "C" {
     void inv_calc_state_to_match_output(inv_biquad_filter_t *pFilter, float input);
     void inv_get_cross_product_vec(float *cgcross, float compass[3], float grav[3]);
 
+    void mlMatrixVectorMult(long matrix[9], const long vecIn[3], long *vecOut);
+
+	long inv_inverse_sqrt(long x0, int*rempow);
+	long inv_fast_sqrt(long x0);
+	long inv_one_over_x(long x0, int*pow);
+	int test_limits_and_scale(long *x0, int *pow);
+	int get_highest_bit_position(unsigned long *value);
+    int inv_compute_scalar_part(const long * inQuat, long* outQuat);
+
 #ifdef __cplusplus
 }
 #endif

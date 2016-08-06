@@ -25,6 +25,8 @@ endif
 APP_FOLDERS  = $(INV_ROOT)/simple_apps/mpu_iio/build/$(TARGET)
 APP_FOLDERS += $(INV_ROOT)/simple_apps/self_test/build/$(TARGET)
 APP_FOLDERS += $(INV_ROOT)/simple_apps/gesture_test/build/$(TARGET)
+APP_FOLDERS += $(INV_ROOT)/simple_apps/playback/linux/build/$(TARGET)
+APP_FOLDERS += $(INV_ROOT)/simple_apps/devnode_parser/build/$(TARGET)
 
 INSTALL_DIR = $(CURDIR)
 

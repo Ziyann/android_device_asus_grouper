@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef COMPASS_SENSOR_H
-#define COMPASS_SENSOR_H
+#ifndef PRESSURE_SENSOR_H
+#define PRESSURE_SENSOR_H
 
 #include <stdint.h>
 #include <errno.h>
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
-// TODO fixme, need input_event
 #include <stdint.h>
 #include <errno.h>
 #include <sys/cdefs.h>
@@ -35,66 +34,43 @@
 #include "SensorBase.h"
 #include "InputEventReader.h"
 
-class CompassSensor : public SensorBase {
+class PressureSensor : public SensorBase {
 
 public:
-    CompassSensor();
-    virtual ~CompassSensor();
+    PressureSensor(const char *sysfs_path);
+    virtual ~PressureSensor();
 
     virtual int getFd() const;
     virtual int enable(int32_t handle, int enabled);
     virtual int setDelay(int32_t handle, int64_t ns);
     virtual int getEnable(int32_t handle);
     virtual int64_t getDelay(int32_t handle);
-    virtual int64_t getMinDelay() { return -1; } // stub
-
-    // unnecessary for MPL
+    virtual int64_t getMinDelay() { return mMinDelay; }
+    // only applicable to primary
     virtual int readEvents(sensors_event_t *data, int count) { return 0; }
-
-    int turnOffCompassFifo(void);
-    int turnOnCompassFifo(void);
-    int readSample(long *data, int64_t *timestamp);
-    int providesCalibration() { return 0; }
-    void getOrientationMatrix(signed char *orient);
-    long getSensitivity();
-    int getAccuracy() { return 0; }
-    void fillList(struct sensor_t *list);
+            
+    void fillList(struct sensor_t *list);    
+    // default is integrated for secondary bus
     int isIntegrated() { return (1); }
-    int isYasCompass(void) { return (0); }
-    int checkCoilsReset(void) { return(-1); }
 
 private:
     char sensor_name[200];
-    enum CompassBus {
-        COMPASS_BUS_PRIMARY = 0,
-        COMPASS_BUS_SECONDARY = 1
-    } mI2CBus;
-
+    
     struct sysfs_attrbs {
-       char *compass_enable;
-       char *compass_fifo_enable;
-       char *compass_x_fifo_enable;
-       char *compass_y_fifo_enable;
-       char *compass_z_fifo_enable;
-       char *compass_rate;
-       char *compass_scale;
-       char *compass_orient;
-    } compassSysFs;
+       char *pressure_enable;
+       char *pressure_rate;
+    } pressureSysFs;
 
-    // implementation specific
-    signed char mCompassOrientation[9];
-    long mCachedCompassData[3];
-    int compass_fd;
-    int64_t mCompassTimestamp;
-    InputEventCircularReader mCompassInputReader;
+    int pressure_fd; 
     int64_t mDelay;
+    int64_t mMinDelay;
     int mEnable;
-    char *pathP;
+    char* pathP;
+    const char* mSysfsPath;
 
-    void processCompassEvent(const input_event *event);
     int inv_init_sysfs_attributes(void);
 };
 
 /*****************************************************************************/
 
-#endif  // COMPASS_SENSOR_H
+#endif  // PRESSURE_SENSOR_H

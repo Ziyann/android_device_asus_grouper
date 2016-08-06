@@ -15,31 +15,66 @@
 
 LOCAL_PATH := $(call my-dir)
 
-COMPILE_COMPASS_AMI306 := 1
+COMPILE_INVENSENSE_COMPASS_CAL := 1
+COMPILE_INVENSENSE_SENSOR_ON_PRIMARY_BUS := 1
+
+# Too many benign warnings to be fixed later.
+my_ignored_clang_warnings := \
+    -Wno-unused-parameter \
+    -Wno-unused-private-field \
+    -Wno-gnu-designator
 
 # InvenSense fragment of the HAL
 include $(CLEAR_VARS)
 
+LOCAL_CLANG_CFLAGS += $(my_ignored_clang_warnings)
 LOCAL_MODULE := libinvensense_hal
-
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_OWNER := invensense
 
-LOCAL_CFLAGS := -DLOG_TAG=\"Sensors\"
-# Comment out for ICS. Affects Android LOG macros.
-LOCAL_CFLAGS += -DANDROID_JELLYBEAN
+LOCAL_CFLAGS := -DLOG_TAG=\"Sensors\" -Werror -Wall
 
-ifeq ($(COMPILE_COMPASS_AMI306),1)
-LOCAL_CFLAGS += -DCOMPASS_AMI306
+# ANDROID version check
+MAJOR_VERSION :=$(shell echo $(PLATFORM_VERSION) | cut -f1 -d.)
+MINOR_VERSION :=$(shell echo $(PLATFORM_VERSION) | cut -f2 -d.)
+VERSION_JB :=$(shell test $(MAJOR_VERSION) -gt 4 -o $(MAJOR_VERSION) -eq 4 -a $(MINOR_VERSION) -gt 0 && echo true)
+#ANDROID version check END
+VERSION_JB:=true
+ifeq ($(VERSION_JB),true)
+LOCAL_CFLAGS += -DANDROID_JELLYBEAN
 endif
 
-LOCAL_SRC_FILES := SensorBase.cpp
+ifneq (,$(filter $(TARGET_BUILD_VARIANT),eng userdebug))
+ifneq ($(COMPILE_INVENSENSE_COMPASS_CAL),0)
+LOCAL_CFLAGS += -DINVENSENSE_COMPASS_CAL
+endif
+ifeq ($(COMPILE_THIRD_PARTY_ACCEL),1)
+LOCAL_CFLAGS += -DTHIRD_PARTY_ACCEL
+endif
+else # release builds, default
+LOCAL_CFLAGS += -DINVENSENSE_COMPASS_CAL
+endif
+
+LOCAL_SRC_FILES += SensorBase.cpp
 LOCAL_SRC_FILES += MPLSensor.cpp
 LOCAL_SRC_FILES += MPLSupport.cpp
 LOCAL_SRC_FILES += InputEventReader.cpp
-LOCAL_SRC_FILES += CompassSensor.IIO.primary.cpp
+LOCAL_SRC_FILES += PressureSensor.IIO.secondary.cpp
 
-LOCAL_C_INCLUDES += $(LOCAL_PATH)
+ifneq (,$(filter $(TARGET_BUILD_VARIANT),eng userdebug))
+ifeq ($(COMPILE_INVENSENSE_COMPASS_CAL),0)
+LOCAL_SRC_FILES += AkmSensor.cpp
+LOCAL_SRC_FILES += CompassSensor.AKM.cpp
+else ifeq ($(COMPILE_INVENSENSE_SENSOR_ON_PRIMARY_BUS), 1)
+LOCAL_SRC_FILES += CompassSensor.IIO.primary.cpp
+LOCAL_CFLAGS += -DSENSOR_ON_PRIMARY_BUS
+else
+LOCAL_SRC_FILES += CompassSensor.IIO.9150.cpp
+endif
+else # release builds, default
+LOCAL_SRC_FILES += CompassSensor.IIO.9150.cpp
+endif #userdebug
+
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/mllite
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/mllite/linux
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/driver/include
@@ -55,9 +90,82 @@ LOCAL_SHARED_LIBRARIES += libmllite
 LOCAL_SHARED_LIBRARIES += libmplmpu
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/mpl
 LOCAL_CPPFLAGS += -DLINUX=1
-LOCAL_CPPFLAGS += -DLIBMLLITE_FROM_SOURCE
-LOCAL_PRELINK_MODULE := false
 
+LOCAL_SHARED_LIBRARIES += libmllite
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/mllite
+LOCAL_CPPFLAGS += -DLINUX=1
+
+include $(BUILD_SHARED_LIBRARY)
+
+# Build a temporary HAL that links the InvenSense .so
+include $(CLEAR_VARS)
+
+LOCAL_CLANG_CFLAGS += $(my_ignored_clang_warnings)
+ifneq ($(filter dory guppy guppypdk, $(TARGET_DEVICE)),)
+LOCAL_MODULE := sensors.invensense
+else
+ifeq (,$(filter $(TARGET_BUILD_VARIANT),eng userdebug))
+ifneq ($(filter manta grouper tilapia, $(TARGET_DEVICE)),)
+#LOCAL_MODULE := sensors.invensense
+else
+LOCAL_MODULE := sensors.${TARGET_PRODUCT}
+endif
+else    # eng & userdebug builds
+LOCAL_MODULE := sensors.${TARGET_PRODUCT}
+endif   # eng & userdebug builds
+endif	# !guppy
+LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
+
+LOCAL_SHARED_LIBRARIES += libmplmpu
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/mllite
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/mllite/linux
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/mpl
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/driver/include
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/driver/include/linux
+
+LOCAL_MODULE_TAGS := optional
+LOCAL_CFLAGS := -DLOG_TAG=\"Sensors\" -Werror -Wall
+
+ifeq ($(VERSION_JB),true)
+LOCAL_CFLAGS += -DANDROID_JELLYBEAN
+endif
+
+ifneq (,$(filter $(TARGET_BUILD_VARIANT),eng userdebug))
+ifneq ($(COMPILE_INVENSENSE_COMPASS_CAL),0)
+LOCAL_CFLAGS += -DINVENSENSE_COMPASS_CAL
+endif
+ifeq ($(COMPILE_THIRD_PARTY_ACCEL),1)
+LOCAL_CFLAGS += -DTHIRD_PARTY_ACCEL
+endif
+ifeq ($(COMPILE_INVENSENSE_SENSOR_ON_PRIMARY_BUS), 1)
+LOCAL_SRC_FILES += CompassSensor.IIO.primary.cpp
+LOCAL_CFLAGS += -DSENSOR_ON_PRIMARY_BUS
+else
+LOCAL_SRC_FILES += CompassSensor.IIO.9150.cpp
+endif
+else # release builds, default
+LOCAL_SRC_FILES += CompassSensor.IIO.9150.cpp
+endif # userdebug
+
+ifeq (,$(filter $(TARGET_BUILD_VARIANT),eng userdebug))
+ifneq ($(filter manta grouper tilapia, $(TARGET_DEVICE)),)
+# it's already defined in some other Makefile for production builds
+#LOCAL_SRC_FILES := sensors_mpl.cpp
+else
+LOCAL_SRC_FILES := sensors_mpl.cpp
+endif
+else    # eng & userdebug builds
+LOCAL_SRC_FILES := sensors_mpl.cpp
+endif   # eng & userdebug builds
+
+#LOCAL_STRIP_MODULE := false
+
+LOCAL_SHARED_LIBRARIES := libinvensense_hal
+LOCAL_SHARED_LIBRARIES += libcutils
+LOCAL_SHARED_LIBRARIES += libutils
+LOCAL_SHARED_LIBRARIES += libdl
+LOCAL_SHARED_LIBRARIES += liblog
+LOCAL_SHARED_LIBRARIES += libmllite
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
@@ -73,15 +181,15 @@ LOCAL_STRIP_MODULE := true
 include $(BUILD_PREBUILT)
 
 include $(CLEAR_VARS)
-LOCAL_CFLAGS += -DANDROID_JELLYBEAN
-LOCAL_CFLAGS += -DLINUX=1
 LOCAL_MODULE := libmllite
-LOCAL_SRC_FILES := $(call all-c-files-under, software/core/mllite)
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/mllite
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/mllite/linux
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/driver/include
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/software/core/driver/include/linux
+LOCAL_SRC_FILES := libmllite.so
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_OWNER := invensense
+LOCAL_MODULE_SUFFIX := .so
+LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 LOCAL_MODULE_PATH := $(TARGET_OUT)/lib
-LOCAL_SHARED_LIBRARIES := liblog
-include $(BUILD_SHARED_LIBRARY)
+OVERRIDE_BUILT_MODULE_PATH := $(TARGET_OUT_INTERMEDIATE_LIBRARIES)
+LOCAL_STRIP_MODULE := true
+include $(BUILD_PREBUILT)
+
+my_ignored_clang_warnings :=
