@@ -27,8 +27,10 @@ inv_error_t inv_stop_vector_compass_cal(void);
 void inv_vector_compass_cal_sensitivity(float sens);
 inv_error_t inv_init_vector_compass_cal();
 
+inv_error_t inv_mcb_switch(int i);
 #ifdef __cplusplus
 }
 #endif
 
 #endif // COMPASS_ONLY_CAL_H__
+

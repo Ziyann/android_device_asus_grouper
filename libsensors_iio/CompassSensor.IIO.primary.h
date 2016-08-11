@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@
 #include "InputEventReader.h"
 
 #define MAX_CHIP_ID_LEN (20)
+#define COMPASS_ON_PRIMARY "in_magn_x_raw"
 
 class CompassSensor : public SensorBase {
 
@@ -48,17 +49,21 @@ public:
     virtual int setDelay(int32_t handle, int64_t ns);
     virtual int getEnable(int32_t handle);
     virtual int64_t getDelay(int32_t handle);
+    virtual int64_t getMinDelay() { return mMinDelay; }
 
     // unnecessary for MPL
-    virtual int readEvents(sensors_event_t* /*data*/, int /*count*/) { return 0; }
+    virtual int readEvents(sensors_event_t *data, int count) { return 0; }
 
     int readSample(long *data, int64_t *timestamp);
+    int readRawSample(float *data, int64_t *timestamp);
     int providesCalibration() { return 0; }
     void getOrientationMatrix(signed char *orient);
     long getSensitivity();
     int getAccuracy() { return 0; }
     void fillList(struct sensor_t *list);
-    int isIntegrated() { return (mI2CBus == COMPASS_BUS_SECONDARY); }
+    int isIntegrated() { return (0); }
+    int checkCoilsReset(void);
+    int isYasCompass(void);
 
 private:
     enum CompassBus {
@@ -69,8 +74,6 @@ private:
     struct sysfs_attrbs {
        char *chip_enable;
        char *in_timestamp_en;
-       char *trigger_name;
-       char *current_trigger;
        char *buffer_length;
 
        char *compass_enable;
@@ -80,8 +83,9 @@ private:
        char *compass_rate;
        char *compass_scale;
        char *compass_orient;
+       char *compass_attr_1;
     } compassSysFs;
-
+    
     char dev_full_name[20];
 
     // implementation specific
@@ -91,14 +95,18 @@ private:
     InputEventCircularReader mCompassInputReader;
     int compass_fd;
     int64_t mDelay;
+    int64_t mMinDelay;
     int mEnable;
     char *pathP;
 
     char mIIOBuffer[(8 + 8) * IIO_BUFFER_LENGTH];
 
+    int masterEnable(int en);
     void enable_iio_sysfs(void);
     void processCompassEvent(const input_event *event);
     int inv_init_sysfs_attributes(void);
+    FILE *mCoilsResetFd;
+    bool mYasCompass;
 };
 
 /*****************************************************************************/

@@ -1,6 +1,6 @@
 /*
  $License:
-    Copyright (C) 2012 InvenSense Corporation, All Rights Reserved.
+    Copyright (C) 2014 InvenSense Corporation, All Rights Reserved.
  $
  */
 
@@ -26,6 +26,7 @@ extern "C" {
     APIs
 */
 inv_error_t inv_load_dmp(FILE  *fd);
+void read_dmp_img(char *dmp_path, char *out_file);
 
 #ifdef __cplusplus
 }

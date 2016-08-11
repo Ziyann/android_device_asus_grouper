@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2012 Invensense, Inc.
+* Copyright (C) 2014 Invensense, Inc.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ class InputEventCircularReader
     struct input_event* mHead;
     struct input_event* mCurr;
     ssize_t mFreeSpace;
+    int mLastFd;
 
 public:
     InputEventCircularReader(size_t numEvents);

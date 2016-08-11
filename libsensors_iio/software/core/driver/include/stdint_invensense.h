@@ -6,7 +6,7 @@
 #ifndef STDINT_INVENSENSE_H
 #define STDINT_INVENSENSE_H
 
-#ifndef WIN32
+#ifndef _WIN32
 
 #ifdef __KERNEL__
 #include <linux/types.h>

@@ -134,17 +134,17 @@ inv_error_t inv_load_mpl_states(const unsigned char *data, size_t length)
     if (data == NULL || len == 0)
         return INV_SUCCESS;
     if (len < sizeof(struct data_header_t))
-        return INV_ERROR_CALIBRATION_LOAD;	// No data
+        return INV_ERROR_CALIBRATION_LOAD;  // No data
     hd = (struct data_header_t *)data;
     if (hd->key != DEFAULT_KEY)
-        return INV_ERROR_CALIBRATION_LOAD;	// Key changed or data corruption
+        return INV_ERROR_CALIBRATION_LOAD;  // Key changed or data corruption
     len = MIN(hd->size, len);
     len = hd->size;
     len -= sizeof(struct data_header_t);
     data += sizeof(struct data_header_t);
     checksum = inv_checksum(data, len);
     if (checksum != hd->checksum)
-        return INV_ERROR_CALIBRATION_LOAD;	// Data corruption
+        return INV_ERROR_CALIBRATION_LOAD;  // Data corruption
 
     while (len > (long)sizeof(struct data_header_t)) {
         hd = (struct data_header_t *)data;

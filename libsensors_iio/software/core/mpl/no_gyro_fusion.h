@@ -25,6 +25,7 @@ extern "C" {
     inv_error_t inv_start_no_gyro_fusion(void);
     inv_error_t inv_start_no_gyro_fusion(void);
     inv_error_t inv_init_no_gyro_fusion(void);
+    int inv_verify_no_gyro_fusion_data(float *data);
 
 #ifdef __cplusplus
 }

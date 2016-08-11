@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2012 Invensense, Inc.
+* Copyright (C) 2014 Invensense, Inc.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,16 +22,51 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
+#if defined ANDROID_JELLYBEAN || defined ANDROID_KITKAT || defined ANDROID_LOLLIPOP
+//build for Jellybean or KitKat
+#define LOGV_IF ALOGV_IF
+#define LOGE_IF ALOGE_IF
+#define LOGI_IF ALOGI_IF
+#define LOGI    ALOGI
+#define LOGE    ALOGE
+#define LOGV    ALOGV
+#define LOGW    ALOGW
+#else
+//build for ICS or earlier version
+#endif
+
+#define FUNC_LOG \
+            LOGV("%s", __PRETTY_FUNCTION__)
+#define VFUNC_LOG \
+            LOGV_IF(SensorBase::FUNC_ENTRY, \
+                    "Entering function '%s'", __PRETTY_FUNCTION__)
+#define VHANDLER_LOG \
+            LOGV_IF(SensorBase::HANDLER_ENTRY, \
+                    "Entering handler '%s'", __PRETTY_FUNCTION__)
 #define CALL_MEMBER_FN(pobject, ptrToMember) ((pobject)->*(ptrToMember))
 
 #define MAX_SYSFS_NAME_LEN  (100)
-#define IIO_BUFFER_LENGTH   (480)
+#define IIO_BUFFER_LENGTH   (960)
 
 /*****************************************************************************/
 
 struct sensors_event_t;
 
 class SensorBase {
+public:
+    /* Log enablers, each of these independent */
+    static bool PROCESS_VERBOSE;   /* process log messages */
+    static bool EXTRA_VERBOSE;     /* verbose log messages */
+    static bool SYSFS_VERBOSE;     /* log sysfs interactions as cat/echo for 
+                                      repro purpose on a shell */
+    /* Note that enabling this logs may affect performance */
+    static bool FUNC_ENTRY;        /* log entry in all one-time functions */
+    static bool HANDLER_ENTRY;     /* log entry in all handler functions */
+    static bool ENG_VERBOSE;       /* log a lot more info about the internals */
+    static bool INPUT_DATA;        /* log the data input from the events */
+    static bool HANDLER_DATA;      /* log the data fetched from the handlers */
+    static bool DEBUG_BATCHING;    /* log the data for debugging batching */
+
 protected:
     const char *dev_name;
     const char *data_name;
@@ -40,20 +75,28 @@ protected:
     int data_fd;
 
     int openInput(const char* inputName);
+    static int64_t getTimestamp();
+    static int64_t timevalToNano(timeval const& t) {
+        return t.tv_sec * 1000000000LL + t.tv_usec * 1000;
+    }
 
     int open_device();
     int close_device();
 
 public:
-            SensorBase(const char* dev_name, const char* data_name);
-
+    SensorBase(const char* dev_name, const char* data_name);
     virtual ~SensorBase();
 
     virtual int readEvents(sensors_event_t* data, int count) = 0;
+    int readSample(long *data, int64_t *timestamp);
+    int readRawSample(float *data, int64_t *timestamp);
     virtual bool hasPendingEvents() const;
     virtual int getFd() const;
     virtual int setDelay(int32_t handle, int64_t ns);
     virtual int enable(int32_t handle, int enabled);
+    virtual int query(int what, int* value);
+    virtual int batch(int handle, int flags, int64_t period_ns, int64_t timeout);
+    virtual int flush(int handle);
 };
 
 /*****************************************************************************/
