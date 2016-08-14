@@ -44,7 +44,6 @@
 #endif
 
 class PressureSensor;
-
 /*****************************************************************************/
 /* Sensors Enable/Disable Mask
  *****************************************************************************/
@@ -70,17 +69,15 @@ class PressureSensor;
 #define INV_COMPASS_CAL              0x01
 #define INV_COMPASS_FIT              0x02
 // bit mask of current active features (mFeatureActiveMask)
-#define INV_DMP_QUATERNION           0x001 //3 elements without real part, 32 bit each
-#define INV_DMP_DISPL_ORIENTATION    0x002
-#define INV_DMP_SIGNIFICANT_MOTION   0x004
-#define INV_DMP_PEDOMETER            0x008
-#define INV_DMP_PEDOMETER_STEP       0x010
-#define INV_DMP_PED_STANDALONE       0x020 //timestamps only
-#define INV_DMP_6AXIS_QUATERNION     0x040 //3 elements without real part, 32 bit each
-#define INV_DMP_PED_QUATERNION       0x080 //3 elements without real part, 16 bit each
-#define INV_DMP_PED_INDICATOR        0x100 //tag along header with step indciator
-#define INV_DMP_BATCH_MODE           0x200
-#define INV_DMP_ACCEL_PED (0xffff)
+#define INV_DMP_QUATERNION           0x01 //3 elements without real part, 32 bit each
+#define INV_DMP_DISPL_ORIENTATION    0x02
+#define INV_DMP_SIGNIFICANT_MOTION   0x04
+#define INV_DMP_PEDOMETER            0x08
+//#define INV_DMP_PEDOMETER_STEP       0x10
+#define INV_DMP_6AXIS_QUATERNION     0x10 //3 elements without real part, 32 bit each
+#define INV_DMP_PED_QUATERNION       0x20 //3 elements without real part, 16 bit each
+#define INV_DMP_ACCEL_PED            0x40 //3 elements Accel data with special header
+#define INV_DMP_BATCH_MODE           0x80
 
 // bit mask of whether screen orientation is on
 /*#define SCREEN_ORIENTATION_MASK (                         \
@@ -94,7 +91,6 @@ class PressureSensor;
         | (INV_DMP_DISPL_ORIENTATION)                \
         | (INV_DMP_SIGNIFICANT_MOTION)               \
         | (INV_DMP_PEDOMETER)                        \
-        | (INV_DMP_PEDOMETER_STEP)                   \
         | (INV_DMP_6AXIS_QUATERNION)                 \
         | (INV_DMP_PED_QUATERNION)                   \
         | (INV_DMP_BATCH_MODE)                       \
@@ -104,19 +100,17 @@ class PressureSensor;
         (INV_DMP_DISPL_ORIENTATION)                  \
         | (INV_DMP_SIGNIFICANT_MOTION)               \
         | (INV_DMP_PEDOMETER)                        \
-        | (INV_DMP_PEDOMETER_STEP)                   \
         | (INV_DMP_6AXIS_QUATERNION)                 \
 )
 // data header format used by kernel driver.
-#define DATA_FORMAT_STEP           0x0001
-#define DATA_FORMAT_MARKER         0x0010
-#define DATA_FORMAT_PED_STANDALONE 0x0100
 #define DATA_FORMAT_PED_QUAT       0x0200
+#define DATA_FORMAT_PED_QUAT_STEP  0x0201
 #define DATA_FORMAT_6_AXIS         0x0400
 #define DATA_FORMAT_QUAT           0x0800
 #define DATA_FORMAT_COMPASS        0x1000
 #define DATA_FORMAT_GYRO           0x2000
 #define DATA_FORMAT_ACCEL          0x4000
+#define DATA_FORMAT_ACCEL_STEP     0x4001
 #define DATA_FORMAT_PRESSURE       0x8000
 #define DATA_FORMAT_MASK           0xffff
 
@@ -201,9 +195,7 @@ public:
     virtual int setDelay(int32_t handle, int64_t ns);
     virtual int enable(int32_t handle, int enabled);
     virtual int batch(int handle, int flags, int64_t period_ns, int64_t timeout);
-    virtual int flush(int handle);
-    int checkBatchEnabled();
-    int setBatch(int en, int toggleEnable);
+    int enableBatch(int en, int toggleEnable);
     int32_t getEnableMask() { return mEnabled; }
     void getHandle(int32_t handle, int &what, android::String8 &sname);
 
@@ -228,7 +220,6 @@ public:
     void buildMpuEvent();
 
     int turnOffAccelFifo();
-    int turnOffGyroFifo();
     int enableDmpOrientation(int);
     int dmpOrientHandler(int);
     int readDmpOrientEvents(sensors_event_t* data, int count);
@@ -272,7 +263,6 @@ protected:
     int scHandler(sensors_event_t *data);
     int gmHandler(sensors_event_t *data);
     int psHandler(sensors_event_t *data);
-    int metaHandler(sensors_event_t *data, int flags);
     void calcOrientationSensor(float *Rx, float *Val);
     virtual int update_delay();
 
@@ -282,8 +272,6 @@ protected:
     int setGyroInitialState();
     int setAccelInitialState();
     int masterEnable(int en);
-    int enablePedStandalone(int en);
-    int enablePedStandaloneData(int en);
     int enablePedQuaternion(int);
     int enablePedQuaternionData(int);
     int enable6AxisQuaternion(int);
@@ -294,11 +282,9 @@ protected:
     int enableAccelPedData(int);
     int onDmp(int);
     int enableGyro(int en);
-    int enableLowPowerAccel(int en);
     int enableAccel(int en);
     int enableCompass(int en, int rawSensorOn);
     int enablePressure(int en);
-    int enableBatch(int64_t timeout);
     void computeLocalSensorMask(int enabled_sensors);
     int computeBatchSensorMask(int enableSensor, int checkNewBatchSensor);
     int computeBatchDataOutput();
@@ -317,15 +303,12 @@ protected:
     int resetCompass(void);
     void setCompassDelay(int64_t ns);
     void enable_iio_sysfs(void);
+    int enableTap(int);
     int enablePedometer(int);
-    int enablePedIndicator(int en);
-    int checkPedStandaloneEnabled(void);
     int checkPedQuatEnabled();
     int check6AxisQuatEnabled();
-    int checkLPQRateSupported();
     int checkLPQuaternion();
     int checkAccelPed();
-    void setInitial6QuatValue();
     int writeSignificantMotionParams(bool toggleEnable,
                                      uint32_t delayThreshold1, uint32_t delayThreshold2,
                                      uint32_t motionThreshold);
@@ -379,13 +362,10 @@ protected:
 
     uint32_t mEnabled;
     uint32_t mBatchEnabled;
-    int32_t mFlushEnabled;
-    uint32_t mOldBatchEnabledMask;
     int64_t mBatchTimeoutInMs;
     sensors_event_t mPendingEvents[NumSensors];
     int64_t mDelays[NumSensors];
     int64_t mBatchDelays[NumSensors];
-    int64_t mBatchTimeouts[NumSensors];
     hfunc_t mHandlers[NumSensors];
     short mCachedGyroData[3];
     long mCachedAccelData[3];
@@ -404,9 +384,7 @@ protected:
     short mTempOffset;
     int64_t mTempCurrentTime;
     int mAccelScale;
-    long mAccelSelfTestScale;
     long mGyroScale;
-    long mGyroSelfTestScale;
     long mCompassScale;
     float mCompassBias[3];
     bool mFactoryGyroBiasAvailable;
@@ -437,12 +415,12 @@ protected:
     struct sysfs_attrbs {
        char *chip_enable;
        char *power_state;
-       char *master_enable;
        char *dmp_firmware;
        char *firmware_loaded;
        char *dmp_on;
        char *dmp_int_on;
        char *dmp_event_int_on;
+       char *dmp_output_rate;
        char *tap_on;
        char *key;
        char *self_test;
@@ -452,8 +430,9 @@ protected:
        char *gyro_fifo_rate;
        char *gyro_fsr;
        char *gyro_orient;
-       char *gyro_fifo_enable;
-       char *gyro_rate;
+       char *gyro_x_fifo_enable;
+       char *gyro_y_fifo_enable;
+       char *gyro_z_fifo_enable;
 
        char *accel_enable;
        char *accel_fifo_rate;
@@ -461,26 +440,23 @@ protected:
        char *accel_bias;
        char *accel_orient;
        char *accel_fifo_enable;
-       char *accel_rate;
+       char *accel_x_fifo_enable;
+       char *accel_y_fifo_enable;
+       char *accel_z_fifo_enable;
 
        char *three_axis_q_on; //formerly quaternion_on
-       char *three_axis_q_rate;
-
+       char *in_quat_r_en;
+       char *in_quat_x_en;
+       char *in_quat_y_en;
+       char *in_quat_z_en;
        char *six_axis_q_on;
-       char *six_axis_q_rate;
-
-       char *six_axis_q_value;
-
        char *ped_q_on;
-       char *ped_q_rate;
-
-       char *step_detector_on;
-       char *step_indicator_on;
+       char *accel_ped_on;
 
        char *in_timestamp_en;
-       char *in_timestamp_index;
-       char *in_timestamp_type;
 
+       char *trigger_name;
+       char *current_trigger;
        char *buffer_length;
 
        char *display_orientation_on;
@@ -489,7 +465,6 @@ protected:
        char *in_accel_x_offset;
        char *in_accel_y_offset;
        char *in_accel_z_offset;
-       char *in_accel_self_test_scale;
 
        char *in_accel_x_dmp_bias;
        char *in_accel_y_dmp_bias;
@@ -498,7 +473,6 @@ protected:
        char *in_gyro_x_offset;
        char *in_gyro_y_offset;
        char *in_gyro_z_offset;
-       char *in_gyro_self_test_scale;
 
        char *in_gyro_x_dmp_bias;
        char *in_gyro_y_dmp_bias;
@@ -511,14 +485,11 @@ protected:
        char *smd_threshold;
        char *batchmode_timeout;
        char *batchmode_wake_fifo_full_on;
-       char *flush_batch;
 
        char *pedometer_on;
        char *pedometer_int_on;
        char *event_pedometer;
        char *pedometer_steps;
-       
-       char *motion_lpa_on;
     } mpu;
 
     char *sysfs_names_ptr;
@@ -526,16 +497,8 @@ protected:
     uint64_t mFeatureActiveMask;
     bool mDmpOn;
     int mPedUpdate;
-    int mPressureUpdate;
     int64_t mQuatSensorTimestamp;
-    int64_t mStepSensorTimestamp;
     uint64_t mLastStepCount;
-    int mLeftOverBufferSize;
-    char mLeftOverBuffer[24];
-    bool mInitial6QuatValueAvailable;
-    long mInitial6QuatValue[4];
-    bool mFlushBatchSet;
-    uint32_t mSkipReadEvents;
 
 private:
     /* added for dynamic get sensor list */
@@ -566,9 +529,6 @@ private:
     void getAccelBias();
     void setAccelBias();
     int isCompassDisabled();
-    int setBatchDataRates();
-    int resetDataRates();
-    void initBias();
     void sys_dump(bool fileMode);
 };
 

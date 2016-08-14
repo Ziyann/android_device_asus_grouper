@@ -16,9 +16,9 @@
 
 #define LOG_NDEBUG 0
 
+#include <string.h>
 #include <stdint.h>
 #include <errno.h>
-#include <string.h>
 #include <unistd.h>
 #include <poll.h>
 

@@ -61,7 +61,7 @@ public:
     long getSensitivity();
     int getAccuracy() { return 0; }
     void fillList(struct sensor_t *list);
-    int isIntegrated() { return (mI2CBus == COMPASS_BUS_SECONDARY); }
+    int isIntegrated() { return (0); }
     int checkCoilsReset(void);
     int isYasCompass(void);
 
@@ -87,7 +87,7 @@ private:
        char *compass_orient;
        char *compass_attr_1;
     } compassSysFs;
-
+    
     char dev_full_name[20];
 
     // implementation specific

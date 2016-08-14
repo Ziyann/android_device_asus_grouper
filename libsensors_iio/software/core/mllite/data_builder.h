@@ -4,17 +4,17 @@
     See included License.txt for License information.
  $
  */
+#include "mltypes.h"
+
 #ifndef INV_DATA_BUILDER_H__
 #define INV_DATA_BUILDER_H__
-
-#include <stdio.h>
-#include "mltypes.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // Uncomment this flag to enable playback debug and record or playback scenarios
+// !! KEEP THIS FLAG OFF FOR RELEASE !!
 //#define INV_PLAYBACK_DBG
 
 /** This is a new sample of accel data */
@@ -27,8 +27,6 @@ extern "C" {
 #define INV_TEMP_NEW 8
 /** This is a new sample of quaternion data */
 #define INV_QUAT_NEW 16
-/** This is a new sample of pressure data */
-#define INV_PRESSURE_NEW 32
 
 /** Set if the data is contiguous. Typically not set if a sample was skipped */
 #define INV_CONTIGUOUS 16
@@ -130,7 +128,6 @@ struct inv_sensor_cal_t {
     struct inv_single_sensor_t compass;
     struct inv_single_sensor_t temp;
     struct inv_quat_sensor_t quat;
-    struct inv_single_sensor_t pressure;
     struct inv_soft_iron_t soft_iron;
     /** Combinations of INV_GYRO_NEW, INV_ACCEL_NEW, INV_MAG_NEW to indicate
     * which data is a new sample as these data points may have different sample rates.
@@ -166,50 +163,42 @@ typedef enum {
 } inv_rd_dbg_states;
 
 /** Change this key if the definition of the struct inv_db_save_t changes.
-    Previous keys: 53394, 53395, 53396 */
-#define INV_DB_SAVE_KEY (53397)
+    Previous keys: 53394, 53395 */
+#define INV_DB_SAVE_KEY (53396)
 
 #define INV_DB_SAVE_MPL_KEY (50001)
-#define INV_DB_SAVE_ACCEL_MPL_KEY (50002)
 
 struct inv_db_save_t {
-    /** compass Bias in chip frame, hardware units scaled by 2^16. */
+    /** Compass Bias in Chip Frame in Hardware units scaled by 2^16 */
     long compass_bias[3];
-    /** gyro factory bias in chip frame, hardware units scaled by 2^16,
-        +/- 2000 dps full scale. */
+    /** Gyro Factory Bias */
     long factory_gyro_bias[3];
-    /** accel factory bias in chip frame, hardware units scaled by 2^16, 
-        +/- 2 gee full scale. */
-    long factory_accel_bias[3];
-    /** temperature when factory_gyro_bias was stored. */
+    /** Temperature when *gyro_bias was stored. */
     long gyro_temp;
-    /** flag to indicate temperature compensation that biases where stored. */
+    /** Flag to indicate temperature compensation that biases where stored. */
     int gyro_bias_tc_set;
-    /** temperature when accel bias was stored. */
+    /** Accel Bias in Chip Frame in Hardware units scaled by 2^16 */
+    long accel_bias[3];
+    /** Temperature when accel bias was stored. */
     long accel_temp;
     long gyro_temp_slope[3];
-    /** sensor accuracies */
+    /** Sensor Accuracy */
     int gyro_accuracy;
     int accel_accuracy;
     int compass_accuracy;
 };
 
 struct inv_db_save_mpl_t {
-    /** gyro bias in chip frame, hardware units scaled by 2^16, +/- 2000 dps
-        full scale */
+    /** Gyro Bias in Chip Frame in Hardware units scaled by 2^16 */
     long gyro_bias[3];
 };
 
-struct inv_db_save_accel_mpl_t {
-    /** accel bias in chip frame, hardware units scaled by 2^16, +/- 2 gee
-        full scale */
-    long accel_bias[3];
-};
 
 /** Maximum number of data callbacks that are supported. Safe to increase if needed.*/
 #define INV_MAX_DATA_CB 20
 
 #ifdef INV_PLAYBACK_DBG
+#include <stdio.h>
 void inv_turn_on_data_logging(FILE *file);
 void inv_turn_off_data_logging();
 #endif
@@ -244,7 +233,6 @@ inv_error_t inv_build_accel(const long *accel, int status,
                             inv_time_t timestamp);
 inv_error_t inv_build_temp(const long temp, inv_time_t timestamp);
 inv_error_t inv_build_quat(const long *quat, int status, inv_time_t timestamp);
-inv_error_t inv_build_pressure(const long pressure, int status, inv_time_t timestamp);
 inv_error_t inv_execute_on_data(void);
 
 void inv_get_compass_bias(long *bias);
@@ -253,8 +241,7 @@ void inv_set_compass_bias(const long *bias, int accuracy);
 void inv_set_compass_disturbance(int dist);
 void inv_set_gyro_bias(const long *bias);
 void inv_set_mpl_gyro_bias(const long *bias, int accuracy);
-void inv_set_accel_bias(const long *bias);
-void inv_set_mpl_accel_bias(const long *bias, int accuracy);
+void inv_set_accel_bias(const long *bias, int accuracy);
 void inv_set_accel_accuracy(int accuracy);
 void inv_set_accel_bias_mask(const long *bias, int accuracy, int mask);
 
@@ -273,11 +260,8 @@ void inv_enable_compass_soft_iron_matrix(void);
 void inv_disable_compass_soft_iron_matrix(void);
 
 void inv_get_mpl_gyro_bias(long *bias, long *temp);
-void inv_get_gyro_bias(long *bias);
-void inv_get_gyro_bias_dmp_units(long *bias);
-int inv_get_factory_accel_bias_mask();
-void inv_get_mpl_accel_bias(long *bias, long *temp);
-void inv_get_accel_bias(long *bias);
+void inv_get_gyro_bias(long *bias, long *temp);
+void inv_get_accel_bias(long *bias, long *temp);
 
 void inv_gyro_was_turned_off(void);
 void inv_accel_was_turned_off(void);

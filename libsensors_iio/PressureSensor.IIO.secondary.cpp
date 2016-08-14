@@ -33,33 +33,39 @@
 #include "ml_sysfs_helper.h"
 
 #pragma message("HAL:build pressure sensor on Invensense MPU secondary bus")
-/* dynamically get this when driver supports it */
-#define CHIP_ID "BMP280"
 
-//#define TIMER (1)
+/* return the current time in nanoseconds */
+extern int64_t now_ns(void);
+
+inline int64_t now_ns(void)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    LOGV_IF(EXTRA_VERBOSE, "Time %lld", (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec);
+    return (int64_t) ts.tv_sec * 1000000000 + ts.tv_nsec;
+}
+
 #define DEFAULT_POLL_TIME 300
 #define PRESSURE_MAX_SYSFS_ATTRB sizeof(pressureSysFs) / sizeof(char*)
 
-#ifdef TIMER
 static int s_poll_time = -1;
 static int min_poll_time = 50;
-#endif
+static struct timespec t_pre;
 
 /*****************************************************************************/
 
 PressureSensor::PressureSensor(const char *sysfs_path) 
                   : SensorBase(NULL, NULL),
                     pressure_fd(-1)
-{
+{                                     
     VFUNC_LOG;
 
     mSysfsPath = sysfs_path;
-    LOGV_IF(ENG_VERBOSE, "pressuresensor path: %s", mSysfsPath);
+    LOGI("pressuresensor path: %s", mSysfsPath);
     if(inv_init_sysfs_attributes()) {
         LOGE("Error Instantiating Pressure Sensor\n");
         return;
-    } else {
-        LOGI_IF(PROCESS_VERBOSE, "HAL:Secondary Chip Id: %s", CHIP_ID);
     }
 }
 
@@ -91,8 +97,7 @@ int PressureSensor::enable(int32_t handle, int en)
     VFUNC_LOG;
 
     int res = 0;
-
-    LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs:echo %d > %s (%lld)",
+    LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs: echo %d > %s (%lld)",
             en, pressureSysFs.pressure_enable, getTimestamp());
     res = write_sysfs_int(pressureSysFs.pressure_enable, en);
 
@@ -103,14 +108,6 @@ int PressureSensor::setDelay(int32_t handle, int64_t ns)
 {
     VFUNC_LOG;
     
-    int res = 0;
-
-    mDelay = int(1000000000.f / ns);
-    LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs:echo %lld > %s (%lld)",
-            mDelay, pressureSysFs.pressure_rate, getTimestamp());
-    res = write_sysfs_int(pressureSysFs.pressure_rate, mDelay);
-     
-#ifdef TIMER
     int t_poll_time = (int)(ns / 1000000LL);
     if (t_poll_time > min_poll_time) {
         s_poll_time = t_poll_time;
@@ -119,8 +116,7 @@ int PressureSensor::setDelay(int32_t handle, int64_t ns)
     }
     LOGV_IF(PROCESS_VERBOSE,
             "HAL:setDelay : %llu ns, (%.2f Hz)", ns, 1000000000.f/ns);
-#endif
-    return res;
+    return 0;
 }
 
 
@@ -141,15 +137,12 @@ int PressureSensor::getEnable(int32_t handle)
 int64_t PressureSensor::getDelay(int32_t handle)
 {
     VFUNC_LOG;
-
-#ifdef TIMER
+    
     if (mEnable) {
         return s_poll_time;
     } else {
         return -1;
     }
-#endif
-    return mDelay;
 }
 
 void PressureSensor::fillList(struct sensor_t *list)
@@ -164,7 +157,6 @@ void PressureSensor::fillList(struct sensor_t *list)
             list->resolution = PRESSURE_BMP280_RESOLUTION;
             list->power = PRESSURE_BMP280_POWER;
             list->minDelay = PRESSURE_BMP280_MINDELAY;
-            mMinDelay = list->minDelay;
             return;
         }      
     }
@@ -175,31 +167,30 @@ void PressureSensor::fillList(struct sensor_t *list)
     list->resolution = PRESSURE_BMP280_RESOLUTION;
     list->power = PRESSURE_BMP280_POWER;
     list->minDelay = PRESSURE_BMP280_MINDELAY;
-    mMinDelay = list->minDelay;
-    return;
 }
 
 int PressureSensor::inv_init_sysfs_attributes(void)
 {
     VFUNC_LOG;
-
-    pathP = (char*)calloc(PRESSURE_MAX_SYSFS_ATTRB,
-            sizeof(char[MAX_SYSFS_NAME_LEN]));
-    if (pathP == NULL)
+ 
+    pathP = (char*)malloc(sizeof(char[PRESSURE_MAX_SYSFS_ATTRB][MAX_SYSFS_NAME_LEN]));
+    char *sptr = pathP;
+    char **dptr = (char**)&pressureSysFs;
+    if (sptr == NULL)
         return -1;
-
+    unsigned char i = 0;
+    do {
+        *dptr++ = sptr;
+        memset(sptr, 0, sizeof(sptr));
+        sptr += sizeof(char[MAX_SYSFS_NAME_LEN]);
+    } while (++i < PRESSURE_MAX_SYSFS_ATTRB);
+ 
+    
     if (mSysfsPath == NULL)
         return 0;
-
-    char *sptr = pathP;
-    char **dptr = reinterpret_cast<char **>(&pressureSysFs);
-    for (size_t i = 0; i < PRESSURE_MAX_SYSFS_ATTRB; i++) {
-      *dptr++ = sptr;
-      sptr += sizeof(char[MAX_SYSFS_NAME_LEN]);
-    }
-
+   
     sprintf(pressureSysFs.pressure_enable, "%s%s", mSysfsPath, "/pressure_enable");
-    sprintf(pressureSysFs.pressure_rate, "%s%s", mSysfsPath, "/pressure_rate");
+    LOGV_IF(PROCESS_VERBOSE, "HAL:inv_init_sysfs_attributes %s", pressureSysFs.pressure_enable);
 
     return 0;
 }

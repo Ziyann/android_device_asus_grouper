@@ -51,7 +51,6 @@ enum {
     ID_P,
     ID_SC,
     ID_GMRV,
-    ID_FC,
     ID_SO
 };
 

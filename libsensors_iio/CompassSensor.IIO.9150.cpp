@@ -59,7 +59,7 @@
 
 /*****************************************************************************/
 
-CompassSensor::CompassSensor()
+CompassSensor::CompassSensor() 
                   : SensorBase(NULL, NULL),
                     compass_fd(-1),
                     mCompassTimestamp(0),
@@ -68,19 +68,24 @@ CompassSensor::CompassSensor()
     VFUNC_LOG;
 
     if(!strcmp(COMPASS_NAME, "USE_SYSFS")) {
-        int result = find_name_by_sensor_type("in_magn_scale", "iio:device", 
-                                              sensor_name);
+        int result = find_name_by_sensor_type("in_magn_scale", "iio:device", sensor_name);
         if(result) {
             LOGE("HAL:Cannot read secondary device name - (%d)", result);
         }
         dev_name = sensor_name;
     }
-    LOGI_IF(PROCESS_VERBOSE, "HAL:Secondary Chip Id: %s", dev_name);
+    LOGI("HAL:Secondary Chip Id: %s", dev_name);
 
     if(inv_init_sysfs_attributes()) {
         LOGE("Error Instantiating Compass\n");
         return;
     }
+
+    /*if (!strcmp(COMPASS_NAME, "INV_COMPASS")) {
+        mI2CBus = COMPASS_BUS_SECONDARY;
+    } else {
+        mI2CBus = COMPASS_BUS_PRIMARY;
+    }*/
 
     memset(mCachedCompassData, 0, sizeof(mCachedCompassData));
 
@@ -90,24 +95,27 @@ CompassSensor::CompassSensor()
     fptr = fopen(compassSysFs.compass_orient, "r");
     if (fptr != NULL) {
         int om[9];
-        if (fscanf(fptr, "%d,%d,%d,%d,%d,%d,%d,%d,%d", 
+        fscanf(fptr, "%d,%d,%d,%d,%d,%d,%d,%d,%d", 
                &om[0], &om[1], &om[2], &om[3], &om[4], &om[5],
-               &om[6], &om[7], &om[8]) < 0 || fclose(fptr) < 0) {
-            LOGE("HAL:Could not read compass mounting matrix");
-        } else {
-            LOGV_IF(EXTRA_VERBOSE, "HAL:compass mounting matrix: "
-                    "%+d %+d %+d %+d %+d %+d %+d %+d %+d", om[0], om[1], om[2], 
-                    om[3], om[4], om[5], om[6], om[7], om[8]);
-            mCompassOrientation[0] = om[0];
-            mCompassOrientation[1] = om[1];
-            mCompassOrientation[2] = om[2];
-            mCompassOrientation[3] = om[3];
-            mCompassOrientation[4] = om[4];
-            mCompassOrientation[5] = om[5];
-            mCompassOrientation[6] = om[6];
-            mCompassOrientation[7] = om[7];
-            mCompassOrientation[8] = om[8];
-        }
+               &om[6], &om[7], &om[8]);
+        fclose(fptr);
+
+        LOGV_IF(EXTRA_VERBOSE,
+                "HAL:compass mounting matrix: "
+                "%+d %+d %+d %+d %+d %+d %+d %+d %+d",
+                om[0], om[1], om[2], om[3], om[4], om[5], om[6], om[7], om[8]);
+
+        mCompassOrientation[0] = om[0];
+        mCompassOrientation[1] = om[1];
+        mCompassOrientation[2] = om[2];
+        mCompassOrientation[3] = om[3];
+        mCompassOrientation[4] = om[4];
+        mCompassOrientation[5] = om[5];
+        mCompassOrientation[6] = om[6];
+        mCompassOrientation[7] = om[7];
+        mCompassOrientation[8] = om[8];
+    } else {
+        LOGE("HAL:Couldn't read compass mounting matrix");
     }
 
     if (!isIntegrated()) {
@@ -118,6 +126,7 @@ CompassSensor::CompassSensor()
 CompassSensor::~CompassSensor()
 {
     VFUNC_LOG;
+
     free(pathP);
     if( compass_fd > 0)
         close(compass_fd);
@@ -125,7 +134,7 @@ CompassSensor::~CompassSensor()
 
 int CompassSensor::getFd() const
 {
-    VFUNC_LOG;
+    VHANDLER_LOG;
     return compass_fd;
 }
 
@@ -141,8 +150,11 @@ int CompassSensor::getFd() const
 int CompassSensor::enable(int32_t handle, int en) 
 {
     VFUNC_LOG;
+
     int res = 0;
+
     res = write_sysfs_int(compassSysFs.compass_enable, en);
+
     return res;
 }
 
@@ -165,23 +177,6 @@ int CompassSensor::setDelay(int32_t handle, int64_t ns)
     return res;
 }
 
-int CompassSensor::turnOffCompassFifo(void)
-{
-    int res = 0;
-    LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs:echo %d > %s (%lld)",
-                        0, compassSysFs.compass_fifo_enable, getTimestamp());
-    res += write_sysfs_int(compassSysFs.compass_fifo_enable, 0);
-    return res;
-}
-
-int CompassSensor::turnOnCompassFifo(void)
-{
-    int res = 0;
-    LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs:echo %d > %s (%lld)",
-                        1, compassSysFs.compass_fifo_enable, getTimestamp());
-    res += write_sysfs_int(compassSysFs.compass_fifo_enable, 1);
-    return res;
-}
 
 /**
     @brief      This function will return the state of the sensor.
@@ -247,7 +242,7 @@ int CompassSensor::readSample(long *data, int64_t *timestamp)
 {
     VHANDLER_LOG;
 
-    int done = 0;
+    int numEventReceived = 0, done = 0;
 
     ssize_t n = mCompassInputReader.fill(compass_fd);
     if (n < 0) {
@@ -309,15 +304,6 @@ void CompassSensor::fillList(struct sensor_t *list)
             list->minDelay = COMPASS_AKM8975_MINDELAY;
             return;
         }
-        if(!strcmp(compass, "compass")
-                || !strncmp(compass, "mlx90399",3)
-                || !strncmp(compass, "MLX90399",3)) {
-            list->maxRange = COMPASS_MPU9350_RANGE;
-            list->resolution = COMPASS_MPU9350_RESOLUTION;
-            list->power = COMPASS_MPU9350_POWER;
-            list->minDelay = COMPASS_MPU9350_MINDELAY;
-            return;
-        }
         if(!strcmp(compass, "INV_YAS530")) {
             list->maxRange = COMPASS_YAS53x_RANGE;
             list->resolution = COMPASS_YAS53x_RESOLUTION;
@@ -346,23 +332,28 @@ int CompassSensor::inv_init_sysfs_attributes(void)
 {
     VFUNC_LOG;
 
+    unsigned char i = 0;
     char sysfs_path[MAX_SYSFS_NAME_LEN];
-    char iio_trigger_path[MAX_SYSFS_NAME_LEN];
+    char iio_trigger_path[MAX_SYSFS_NAME_LEN], tbuf[2];
+    char *sptr;
+    char **dptr;
+    int num;
 
-    pathP = (char*)calloc(COMPASS_MAX_SYSFS_ATTRB,
-                          sizeof(char[MAX_SYSFS_NAME_LEN]));
-    if (pathP == NULL)
+    pathP = (char*)malloc(
+                    sizeof(char[COMPASS_MAX_SYSFS_ATTRB][MAX_SYSFS_NAME_LEN]));
+    sptr = pathP;
+    dptr = (char**)&compassSysFs;
+    if (sptr == NULL)
         return -1;
 
     memset(sysfs_path, 0, sizeof(sysfs_path));
     memset(iio_trigger_path, 0, sizeof(iio_trigger_path));
 
-    char *sptr = pathP;
-    char **dptr = reinterpret_cast<char **>(&compassSysFs);
-    for (size_t i = 0; i < COMPASS_MAX_SYSFS_ATTRB; i++) {
-      *dptr++ = sptr;
-      sptr += sizeof(char[MAX_SYSFS_NAME_LEN]);
-    }
+    do {
+        *dptr++ = sptr;
+        memset(sptr, 0, sizeof(sptr));
+        sptr += sizeof(char[MAX_SYSFS_NAME_LEN]);
+    } while (++i < COMPASS_MAX_SYSFS_ATTRB);
 
     // get proper (in absolute/relative) IIO path & build MPU's sysfs paths
     // inv_get_sysfs_abs_path(sysfs_path);
@@ -373,9 +364,6 @@ int CompassSensor::inv_init_sysfs_attributes(void)
         return 0;
 
 #if defined COMPASS_AK8975
-    char tbuf[2];
-    int num;
-
     inv_get_input_number(dev_name, &num);
     tbuf[0] = num + 0x30;
     tbuf[1] = 0;
@@ -388,11 +376,18 @@ int CompassSensor::inv_init_sysfs_attributes(void)
     sprintf(compassSysFs.compass_orient, "%s%s", sysfs_path, "/compass_matrix");
 #else
     sprintf(compassSysFs.compass_enable, "%s%s", sysfs_path, "/compass_enable");
-    sprintf(compassSysFs.compass_fifo_enable, "%s%s", sysfs_path, "/compass_fifo_enable");
-    sprintf(compassSysFs.compass_rate, "%s%s", sysfs_path, "/compass_rate");
+    sprintf(compassSysFs.compass_rate, "%s%s",
+            sysfs_path, "/sampling_frequency");
     sprintf(compassSysFs.compass_scale, "%s%s", sysfs_path, "/in_magn_scale");
     sprintf(compassSysFs.compass_orient, "%s%s", sysfs_path, "/compass_matrix");
 #endif
 
+#if 0
+    // test print sysfs paths   
+    dptr = (char**)&compassSysFs;
+    for (i = 0; i < COMPASS_MAX_SYSFS_ATTRB; i++) {
+        LOGE("HAL:sysfs path: %s", *dptr++);
+    }
+#endif
     return 0;
 }
