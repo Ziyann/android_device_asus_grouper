@@ -90,33 +90,33 @@ CompassSensor::CompassSensor()
     fptr = fopen(compassSysFs.compass_orient, "r");
     if (fptr != NULL) {
         int om[9];
-        fscanf(fptr, "%d,%d,%d,%d,%d,%d,%d,%d,%d", 
+        if (fscanf(fptr, "%d,%d,%d,%d,%d,%d,%d,%d,%d",
                &om[0], &om[1], &om[2], &om[3], &om[4], &om[5],
-               &om[6], &om[7], &om[8]);
-        fclose(fptr);
+               &om[6], &om[7], &om[8]) < 0 || fclose(fptr)) {
+            LOGE("HAL:could not read compass mounting matrix");
+        } else {
 
-        LOGV_IF(EXTRA_VERBOSE,
-                "HAL:compass mounting matrix: "
-                "%+d %+d %+d %+d %+d %+d %+d %+d %+d",
-                om[0], om[1], om[2], om[3], om[4], om[5], om[6], om[7], om[8]);
+            LOGV_IF(EXTRA_VERBOSE,
+                    "HAL:compass mounting matrix: "
+                    "%+d %+d %+d %+d %+d %+d %+d %+d %+d",
+                    om[0], om[1], om[2], om[3], om[4], om[5], om[6], om[7], om[8]);
 
-        mCompassOrientation[0] = om[0];
-        mCompassOrientation[1] = om[1];
-        mCompassOrientation[2] = om[2];
-        mCompassOrientation[3] = om[3];
-        mCompassOrientation[4] = om[4];
-        mCompassOrientation[5] = om[5];
-        mCompassOrientation[6] = om[6];
-        mCompassOrientation[7] = om[7];
-        mCompassOrientation[8] = om[8];
-    } else {
-        LOGE("HAL:Couldn't read compass mounting matrix");
+            mCompassOrientation[0] = om[0];
+            mCompassOrientation[1] = om[1];
+            mCompassOrientation[2] = om[2];
+            mCompassOrientation[3] = om[3];
+            mCompassOrientation[4] = om[4];
+            mCompassOrientation[5] = om[5];
+            mCompassOrientation[6] = om[6];
+            mCompassOrientation[7] = om[7];
+            mCompassOrientation[8] = om[8];
+        }
     }
 
     if(mYasCompass) {
         mCoilsResetFd = fopen(compassSysFs.compass_attr_1, "r+");
         if (fptr == NULL) {
-            LOGE("HAL:Couldn't read compass overunderflow");
+            LOGE("HAL:Could not open compass overunderflow");
         }
     }
 }
@@ -212,7 +212,7 @@ int CompassSensor::getFd(void) const
  *                  en=0, disable
  *  @return       if the operation is successful.
  */
-int CompassSensor::enable(int32_t handle, int en) 
+int CompassSensor::enable(int32_t handle __unused, int en) 
 {
     VFUNC_LOG;
 
@@ -227,8 +227,14 @@ int CompassSensor::enable(int32_t handle, int en)
     }
 
     if (en) {
+        LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs:echo %d > %s (%lld)",
+                en, compassSysFs.compass_x_fifo_enable, getTimestamp());
         res = write_sysfs_int(compassSysFs.compass_x_fifo_enable, en);
+        LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs:echo %d > %s (%lld)",
+                en, compassSysFs.compass_y_fifo_enable, getTimestamp());
         res += write_sysfs_int(compassSysFs.compass_y_fifo_enable, en);
+        LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs:echo %d > %s (%lld)",
+                en, compassSysFs.compass_z_fifo_enable, getTimestamp());
         res += write_sysfs_int(compassSysFs.compass_z_fifo_enable, en);
 
         res = masterEnable(en);
@@ -240,23 +246,26 @@ int CompassSensor::enable(int32_t handle, int en)
     return res;
 }
 
-int CompassSensor::masterEnable(int en) {
+int CompassSensor::masterEnable(int en)
+{
     VFUNC_LOG;
+    LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs:echo %d > %s (%lld)",
+            en, compassSysFs.chip_enable, getTimestamp());
     return write_sysfs_int(compassSysFs.chip_enable, en);
 }
 
-int CompassSensor::setDelay(int32_t handle, int64_t ns) 
+int CompassSensor::setDelay(int32_t handle __unused, int64_t ns) 
 {
     VFUNC_LOG;
     int tempFd;
     int res;
 
-    LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs:echo %.0f > %s (%lld)", 
-            1000000000.f / ns, compassSysFs.compass_rate, getTimestamp());
     mDelay = ns;
     if (ns == 0)
         return -1;
     tempFd = open(compassSysFs.compass_rate, O_RDWR);
+    LOGV_IF(SYSFS_VERBOSE, "HAL:sysfs:echo %.0f > %s (%lld)",
+            1000000000.f / ns, compassSysFs.compass_rate, getTimestamp());
     res = write_attribute_sensor(tempFd, 1000000000.f / ns);
     if(res < 0) {
         LOGE("HAL:Compass update delay error");
@@ -268,7 +277,7 @@ int CompassSensor::setDelay(int32_t handle, int64_t ns)
     @brief      This function will return the state of the sensor.
     @return     1=enabled; 0=disabled
 **/
-int CompassSensor::getEnable(int32_t handle)
+int CompassSensor::getEnable(int32_t handle __unused)
 {
     VFUNC_LOG;
     return mEnable;
@@ -355,7 +364,7 @@ int CompassSensor::readSample(long *data, int64_t *timestamp) {
  *  @brief  This function will return the current delay for this sensor.
  *  @return delay in nanoseconds. 
  */
-int64_t CompassSensor::getDelay(int32_t handle)
+int64_t CompassSensor::getDelay(int32_t handle __unused)
 {
     VFUNC_LOG;
     return mDelay;

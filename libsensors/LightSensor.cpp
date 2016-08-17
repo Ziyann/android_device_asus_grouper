@@ -69,7 +69,7 @@ int LightSensor::setInitialState() {
     return 0;
 }
 
-int LightSensor::setDelay(int32_t handle, int64_t ns)
+int LightSensor::setDelay(int32_t handle __unused, int64_t ns)
 {
     int fd;
 
@@ -85,7 +85,7 @@ int LightSensor::setDelay(int32_t handle, int64_t ns)
     return -1;
 }
 
-int LightSensor::enable(int32_t handle, int en)
+int LightSensor::enable(int32_t handle __unused, int en)
 {
     int flags = en ? 1 : 0;
     int err;

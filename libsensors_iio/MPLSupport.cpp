@@ -149,13 +149,12 @@ int read_sysfs_int(char *filename, int *var)
     FILE  *sysfsfp;
 
     sysfsfp = fopen(filename, "r");
-    if (sysfsfp!=NULL) {
-        fscanf(sysfsfp, "%d\n", var);
-        fclose(sysfsfp);
-    } else {
+    if (sysfsfp != NULL) {
+        if (fscanf(sysfsfp, "%d\n", var) < 0 || fclose(sysfsfp) < 0) {    
             res = errno;
             LOGE("HAL:ERR open file %s to read with error %d", filename, res);
         }
+    }
     return -res;
 }
 
@@ -165,13 +164,12 @@ int write_sysfs_int(char *filename, int var)
     FILE  *sysfsfp;
 
     sysfsfp = fopen(filename, "w");
-    if (sysfsfp!=NULL) {
-        fprintf(sysfsfp, "%d\n", var);
-        fclose(sysfsfp);
-    } else {
+    if (sysfsfp != NULL) {
+        if (fprintf(sysfsfp, "%d\n", var) < 0 || fclose(sysfsfp) < 0) {
             res = errno;
             LOGE("HAL:ERR open file %s to write with error %d", filename, res);
         }
+    }
     return -res;
 }
 
@@ -181,13 +179,12 @@ int write_sysfs_longlong(char *filename, int64_t var)
     FILE  *sysfsfp;
 
     sysfsfp = fopen(filename, "w");
-    if (sysfsfp!=NULL) {
-        fprintf(sysfsfp, "%lld\n", var);
-        fclose(sysfsfp);
-    } else {
+    if (sysfsfp != NULL) {
+        if (fprintf(sysfsfp, "%lld\n", var) < 0 || fclose(sysfsfp) < 0) {   
             res = errno;
             LOGE("HAL:ERR open file %s to write with error %d", filename, res);
         }
+    }
     return -res;
 }
 
@@ -236,9 +233,6 @@ int fill_dev_full_name_by_prefix(const char* dev_prefix,
 
 void dump_dmp_img(const char *outFile)
 {
-    FILE *fp;
-    int i;
-
     char sysfs_path[MAX_SYSFS_NAME_LEN];
     char dmp_path[MAX_SYSFS_NAME_LEN];
 
@@ -250,58 +244,4 @@ void dump_dmp_img(const char *outFile)
     LOGI("HAL DEBUG:write to %s", outFile);
 
     //read_dmp_img(dmp_path, (char *)outFile);
-}
-
-int read_sysfs_dir(bool fileMode, char *sysfs_path)
-{
-    VFUNC_LOG;
-
-    int res = 0;
-    char full_path[MAX_SYSFS_NAME_LEN];
-    int fd;
-    char buf[sizeof(long) *4];
-    long data;
-  
-    DIR *dp;
-    struct dirent *ep;
-      
-    dp = opendir (sysfs_path);
-
-    if (dp != NULL)
-    {
-        LOGI("******************** System Sysfs Dump ***************************");
-        LOGV_IF(0,"HAL DEBUG: opened directory %s", sysfs_path);
-        while ((ep = readdir (dp))) {
-            if(ep != NULL) {
-                LOGV_IF(0,"file name %s", ep->d_name);
-                if(!strcmp(ep->d_name, ".") || !strcmp(ep->d_name, "..") ||
-                         !strcmp(ep->d_name, "uevent") || !strcmp(ep->d_name, "dev") ||
-                         !strcmp(ep->d_name, "self_test"))
-                    continue;
-                sprintf(full_path, "%s%s%s", sysfs_path, "/", ep->d_name);
-                LOGV_IF(0,"HAL DEBUG: reading %s", full_path);
-                fd = open(full_path, O_RDONLY);
-                if (fd > -1) {
-                    memset(buf, 0, sizeof(buf));
-                    res = read_attribute_sensor(fd, buf, sizeof(buf));
-                    close(fd);
-                    if (res > 0) {
-                        res = sscanf(buf, "%ld", &data);
-                        if (res)
-                            LOGI("HAL DEBUG:sysfs:cat %s = %ld", full_path, data);
-                    } else {
-                         LOGV_IF(0,"HAL DEBUG: error reading %s", full_path);
-                    } 
-                } else {
-                    LOGV_IF(0,"HAL DEBUG: error opening %s", full_path);
-                }
-                close(fd);
-            }
-        }
-        closedir(dp);
-    } else{
-        LOGI("HAL DEBUG: could not open directory %s", sysfs_path);
-    }
-
-    return res;
 }

@@ -75,7 +75,7 @@ int SensorBase::getFd() const {
     return data_fd;
 }
 
-int SensorBase::setDelay(int32_t handle, int64_t ns) {
+int SensorBase::setDelay(int32_t handle  __unused, int64_t ns  __unused) {
     return 0;
 }
 
@@ -130,12 +130,13 @@ int SensorBase::openInput(const char* inputName) {
     return fd;
 }
 
-int SensorBase::batch(int handle, int flags, int64_t period_ns, int64_t timeout)
+int SensorBase::batch(int handle  __unused, int flags  __unused,
+	int64_t period_ns  __unused, int64_t timeout  __unused)
 {
     return 0;
 }
 
-int SensorBase::flush(int handle)
+int SensorBase::flush(int handle  __unused)
 {
     return 0;
 }

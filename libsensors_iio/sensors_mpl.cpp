@@ -55,7 +55,7 @@ static int sensors = (sizeof(sSensorList) / sizeof(sensor_t));
 static int open_sensors(const struct hw_module_t* module, const char* id,
                         struct hw_device_t** device);
 
-static int sensors__get_sensors_list(struct sensors_module_t* module,
+static int sensors__get_sensors_list(struct sensors_module_t* module __unused,
                                      struct sensor_t const** list)
 {
     *list = sSensorList;
@@ -79,6 +79,7 @@ struct sensors_module_t HAL_MODULE_INFO_SYM = {
                 reserved: {0}
         },
         get_sensors_list: sensors__get_sensors_list,
+        set_operation_mode: NULL,
 };
 
 struct sensors_poll_context_t {
@@ -92,8 +93,6 @@ struct sensors_poll_context_t {
     int query(int what, int *value);
     int batch(int handle, int flags, int64_t period_ns, int64_t timeout);
     
-
-
 private:
     enum {
         mpl = 0,
@@ -227,14 +226,6 @@ int sensors_poll_context_t::pollEvents(sensors_event_t *data, int count)
                 }
             }
         }
-//        nb = ((MPLSensor*) mSensor)->readEvents(data, count);
-//        LOGI_IF(0, "sensors_mpl:readEvents() - nb=%d, count=%d, nbEvents=%d, data->timestamp=%lld, data->data[0]=%f,",
-//                          nb, count, nbEvents, data->timestamp, data->data[0]);
-//        if (nb > 0) {
-//            count -= nb;
-//            nbEvents += nb;
-//            data += nb;
-//        }
     } else if(nb == 0){
         if (mPollFds[numSensorDrivers].revents & POLLIN) {
             char msg;
@@ -244,12 +235,6 @@ int sensors_poll_context_t::pollEvents(sensors_event_t *data, int count)
         }
     }
     return nbEvents;
-}
-
-int sensors_poll_context_t::query(int what, int* value)
-{
-    FUNC_LOG;
-    return mSensor->query(what, value);
 }
 
 int sensors_poll_context_t::batch(int handle, int flags, int64_t period_ns, int64_t timeout)
@@ -309,7 +294,7 @@ static int poll__batch(struct sensors_poll_device_1 *dev,
 /******************************************************************************/
 
 /** Open a new instance of a sensor device using name */
-static int open_sensors(const struct hw_module_t* module, const char* id,
+static int open_sensors(const struct hw_module_t* module, const char* id __unused,
                         struct hw_device_t** device)
 {
     FUNC_LOG;

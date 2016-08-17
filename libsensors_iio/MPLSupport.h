@@ -30,6 +30,5 @@ int write_sysfs_longlong(char*, long long);
 int fill_dev_full_name_by_prefix(const char* dev_prefix,
                                  char* dev_full_name, int len);
 void dump_dmp_img(const char *out_file);
-int read_sysfs_dir(bool fileMode, char *sysfs_path);
 
 #endif //  ANDROID_MPL_SUPPORT_H

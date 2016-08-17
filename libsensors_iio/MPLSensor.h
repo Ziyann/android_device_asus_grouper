@@ -32,7 +32,6 @@
 
 #include "CompassSensor.IIO.primary.h"
 
-class PressureSensor;
 /*****************************************************************************/
 /* Sensors Enable/Disable Mask
  *****************************************************************************/
@@ -103,13 +102,6 @@ class PressureSensor;
 #define DATA_FORMAT_PRESSURE       0x8000
 #define DATA_FORMAT_MASK           0xffff
 
-#define BYTES_PER_SENSOR                8
-#define BYTES_PER_SENSOR_PACKET         16
-#define QUAT_ONLY_LAST_PACKET_OFFSET    16
-#define BYTES_QUAT_DATA                 24
-#define MAX_SUSPEND_BATCH_PACKET_SIZE   1024
-#define MAX_PACKET_SIZE                 80 //8 * 4 + (2 * 24)
-
 /* Uncomment to enable Low Power Quaternion */
 #define ENABLE_LP_QUAT_FEAT
 
@@ -133,9 +125,6 @@ class PressureSensor;
 #define ENABLE_DMP_SCREEN_AUTO_ROTATION
 #pragma message("ENABLE_DMP_DISPL_ORIENT_FEAT is defined, framework changes are necessary for HAL to work properly")
 #endif
-
-/* Enable Pressure sensor support */
-//#define ENABLE_PRESSURE
 
 int isDmpScreenAutoRotationEnabled()
 {
@@ -179,7 +168,8 @@ public:
 
     virtual int setDelay(int32_t handle, int64_t ns);
     virtual int enable(int32_t handle, int enabled);
-    virtual int batch(int handle, int flags, int64_t period_ns, int64_t timeout);
+    virtual int batch(int handle __unused, int flags __unused,
+      int64_t period_ns __unused, int64_t timeout __unused);
     void getHandle(int32_t handle, int &what, android::String8 &sname);
 
     virtual int readEvents(sensors_event_t *data, int count);
@@ -189,7 +179,6 @@ public:
     virtual int getPollTime();
     virtual bool hasPendingEvents() const;
     virtual void sleepEvent();
-    virtual void wakeEvent();
     int populateSensorList(struct sensor_t *list, int len);
     void cbProcData();
 
@@ -223,7 +212,6 @@ public:
 
 protected:
     CompassSensor *mCompassSensor;
-    PressureSensor *mPressureSensor;
 
     int gyroHandler(sensors_event_t *data);
     int rawGyroHandler(sensors_event_t *data);
@@ -236,10 +224,6 @@ protected:
     int gravHandler(sensors_event_t *data);
     int orienHandler(sensors_event_t *data);
     int smHandler(sensors_event_t *data);
-    int pHandler(sensors_event_t *data);
-    int scHandler(sensors_event_t *data);
-    int psHandler(sensors_event_t *data);
-    void calcOrientationSensor(float *Rx, float *Val);
     virtual int update_delay();
 
     void inv_set_device_properties();
@@ -250,19 +234,13 @@ protected:
     int masterEnable(int en);
     int enablePedQuaternion(int);
     int enablePedQuaternionData(int);
-    int enable6AxisQuaternion(int);
-    int enable6AxisQuaternionData(int);
     int enableLPQuaternion(int);
     int enableQuaternionData(int);
-    int enableAccelPedometer(int);
-    int enableAccelPedData(int);
     int onDmp(int);
     int enableGyro(int en);
     int enableAccel(int en);
     int enableCompass(int en, int rawSensorOn);
     void computeLocalSensorMask(int enabled_sensors);
-    int computeBatchSensorMask(int enableSensor, int checkNewBatchSensor);
-    int computeBatchDataOutput();
     int enableSensors(unsigned long sensors, int en, uint32_t changed);
     int inv_read_gyro_buffer(int fd, short *data, long long *timestamp);
     int inv_float_to_q16(float *fdata, long *ldata);
@@ -279,15 +257,11 @@ protected:
     void setCompassDelay(int64_t ns);
     void enable_iio_sysfs(void);
     int enableTap(int);
-    int check6AxisQuatEnabled();
     int checkLPQuaternion();
-    int checkAccelPed();
     int writeSignificantMotionParams(bool toggleEnable,
                                      uint32_t delayThreshold1, uint32_t delayThreshold2,
                                      uint32_t motionThreshold);
 
-    int mNewData;   // flag indicating that the MPL calculated new output values
-    int mDmpStarted;
     long mMasterSensorMask;
     long mLocalSensorMask;
     int mPollTime;
@@ -295,31 +269,22 @@ protected:
     int mGyroAccuracy;      // value indicating the quality of the gyro calibr.
     int mAccelAccuracy;     // value indicating the quality of the accel calibr.
     int mCompassAccuracy;     // value indicating the quality of the compass calibr.
-    struct pollfd mPollFds[5];
-    int mSampleCount;
     pthread_mutex_t mMplMutex;
     pthread_mutex_t mHALMutex;
 
+#if 0
+    char mIIOBuffer[((16 + 8 * 3 + 8) * IIO_BUFFER_LENGTH) - 192];
+#else
     char mIIOBuffer[(16 + 8 * 3 + 8) * IIO_BUFFER_LENGTH];
+#endif
 
     int iio_fd;
     int accel_fd;
     int gyro_temperature_fd;
-    int accel_x_offset_fd;
-    int accel_y_offset_fd;
-    int accel_z_offset_fd;
 
     int accel_x_dmp_bias_fd;
     int accel_y_dmp_bias_fd;
     int accel_z_dmp_bias_fd;
-
-    int gyro_x_offset_fd;
-    int gyro_y_offset_fd;
-    int gyro_z_offset_fd;
-
-    int gyro_x_dmp_bias_fd;
-    int gyro_y_dmp_bias_fd;
-    int gyro_z_dmp_bias_fd;
 
     int dmp_orient_fd;
     int mDmpOrientationEnabled;
@@ -329,26 +294,17 @@ protected:
 
     uint32_t mEnabled;
     uint32_t mBatchEnabled;
-    int64_t mBatchTimeoutInMs;
     sensors_event_t mPendingEvents[NumSensors];
     int64_t mDelays[NumSensors];
-    int64_t mBatchDelays[NumSensors];
     hfunc_t mHandlers[NumSensors];
     short mCachedGyroData[3];
     long mCachedAccelData[3];
     long mCachedCompassData[3];
     long mCachedQuaternionData[4];
-    long mCached6AxisQuaternionData[3];
-    long mCachedPedQuaternionData[3];
-    long mCachedPressureData;
-    android::KeyedVector<int, int> mIrqFds;
 
     InputEventCircularReader mAccelInputReader;
     InputEventCircularReader mGyroInputReader;
 
-    bool mFirstRead;
-    short mTempScale;
-    short mTempOffset;
     int64_t mTempCurrentTime;
     int mAccelScale;
     long mGyroScale;
@@ -447,7 +403,6 @@ protected:
     int mMplFeatureActiveMask;
     uint64_t mFeatureActiveMask;
     bool mDmpOn;
-    int64_t mQuatSensorTimestamp;
 
 private:
     /* added for dynamic get sensor list */
@@ -473,7 +428,6 @@ private:
     void getAccelBias();
     void setAccelBias();
     int isCompassDisabled();
-    void sys_dump(bool fileMode);
 };
 
 extern "C" {

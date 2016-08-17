@@ -41,15 +41,20 @@ enum {
     ID_RG,
     ID_A,
     ID_M,
+    ID_RM,
     ID_O,
     ID_RV,
+    ID_GRV,
     ID_LA,
     ID_GR,
+    ID_SM,
     ID_SO,
     ID_L = 0x80
 };
 
-#define EVENT_TYPE_LIGHT    ABS_MISC
+#define SENSORS_LIGHT_HANDLE    (ID_L)
+
+#define EVENT_TYPE_LIGHT        ABS_MISC
 
 /*****************************************************************************/
 
