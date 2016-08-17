@@ -47,7 +47,7 @@
 #define HANDLER_ENTRY   (0) /* log entry in all handler functions */
 #define ENG_VERBOSE     (0) /* log some a lot more info about the internals */
 #define INPUT_DATA      (1) /* log the data input from the events */
-#define HANDLER_DATA    (0) /* log the data fetched from the handlers */
+#define HANDLER_DATA    (1) /* log the data fetched from the handlers */
 
 #define FUNC_LOG \
             LOGV("%s", __PRETTY_FUNCTION__)

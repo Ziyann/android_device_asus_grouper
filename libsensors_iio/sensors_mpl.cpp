@@ -100,7 +100,6 @@ private:
         compass,
         dmpOrient,
         dmpSign,
-        dmpPed,
         numSensorDrivers,   // wake pipe goes here
         numFds,
     };
@@ -149,10 +148,6 @@ sensors_poll_context_t::sensors_poll_context_t() {
     mPollFds[dmpSign].events = POLLPRI;
     mPollFds[dmpSign].revents = 0;
 
-    mPollFds[dmpPed].fd = ((MPLSensor*) mSensor)->getDmpPedometerFd();
-    mPollFds[dmpPed].events = POLLPRI;
-    mPollFds[dmpPed].revents = 0;
-
     /* Timer based sensor initialization */
     int wakeFds[2];
     int result = pipe(wakeFds);
@@ -191,7 +186,7 @@ int sensors_poll_context_t::pollEvents(sensors_event_t *data, int count)
     int nbEvents = 0;
     int nb, polltime = -1;
 
-    polltime = ((MPLSensor*) mSensor)->getStepCountPollTime();
+    polltime = ((MPLSensor*) mSensor)->getPollTime();
 
     // look for new events
     nb = poll(mPollFds, numFds, polltime);
@@ -221,13 +216,6 @@ int sensors_poll_context_t::pollEvents(sensors_event_t *data, int count)
                     count -= nb;
                     nbEvents += nb;
                     data += nb; 
-                } else if (i == dmpPed) {
-                    LOGI("HAL: dmpPed interrupt");
-                    nb = ((MPLSensor*) mSensor)->readDmpPedometerEvents(data, count, ID_P, SENSOR_TYPE_STEP_DETECTOR, 0);
-                    mPollFds[i].revents = 0;
-                    count -= nb;
-                    nbEvents += nb;
-                    data += nb;
                 }
                 nb = ((MPLSensor*) mSensor)->readEvents(data, count);
                 LOGI_IF(0, "sensors_mpl:readEvents() - nb=%d, count=%d, nbEvents=%d, data->timestamp=%lld, data->data[0]=%f,",
@@ -247,34 +235,7 @@ int sensors_poll_context_t::pollEvents(sensors_event_t *data, int count)
 //            nbEvents += nb;
 //            data += nb;
 //        }
-
-        /* to see if any step counter events */
-        if(((MPLSensor*) mSensor)->hasStepCountPendingEvents() == true) {
-            nb = 0;
-            nb = ((MPLSensor*) mSensor)->readDmpPedometerEvents(data, count, ID_SC, SENSOR_TYPE_STEP_COUNTER, 0);
-            LOGI_IF(HANDLER_DATA, "sensors_mpl:readStepCount() - nb=%d, count=%d, nbEvents=%d, data->timestamp=%lld, data->data[0]=%f,",
-                          nb, count, nbEvents, data->timestamp, data->data[0]);
-            if (nb > 0) {
-                count -= nb;
-                nbEvents += nb;
-                data += nb;
-            }
-        }
     } else if(nb == 0){
-
-        /* to see if any step counter events */
-        if(((MPLSensor*) mSensor)->hasStepCountPendingEvents() == true) {
-            nb = 0;
-            nb = ((MPLSensor*) mSensor)->readDmpPedometerEvents(data, count, ID_SC, SENSOR_TYPE_STEP_COUNTER, 0);
-            LOGI_IF(HANDLER_DATA, "sensors_mpl:readStepCount() - nb=%d, count=%d, nbEvents=%d, data->timestamp=%lld, data->data[0]=%f,",
-                          nb, count, nbEvents, data->timestamp, data->data[0]);
-            if (nb > 0) {
-                count -= nb;
-                nbEvents += nb;
-                data += nb;
-            }
-        }
-
         if (mPollFds[numSensorDrivers].revents & POLLIN) {
             char msg;
             int result = read(mPollFds[numSensorDrivers].fd, &msg, 1);

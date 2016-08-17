@@ -52,7 +52,7 @@ public:
     virtual int64_t getMinDelay() { return mMinDelay; }
 
     // unnecessary for MPL
-    virtual int readEvents(sensors_event_t *data, int count) { return 0; }
+    virtual int readEvents(sensors_event_t *data __unused, int count __unused) { return 0; }
 
     int readSample(long *data, int64_t *timestamp);
     int readRawSample(float *data, int64_t *timestamp);

@@ -30,18 +30,7 @@
 #include "SensorBase.h"
 #include "InputEventReader.h"
 
-#ifndef INVENSENSE_COMPASS_CAL
-#pragma message("unified HAL for AKM")
-#include "CompassSensor.AKM.h"
-#endif
-
-#ifdef SENSOR_ON_PRIMARY_BUS
-#pragma message("Sensor on Primary Bus")
 #include "CompassSensor.IIO.primary.h"
-#else
-#pragma message("Sensor on Secondary Bus")
-#include "CompassSensor.IIO.9150.h"
-#endif
 
 class PressureSensor;
 /*****************************************************************************/
@@ -176,16 +165,12 @@ public:
         Accelerometer,
         MagneticField,
         RawMagneticField,
-        Pressure,
         Orientation,
         RotationVector,
         GameRotationVector,
         LinearAccel,
         Gravity,
         SignificantMotion,
-        StepDetector,
-        StepCounter,
-        GeomagneticRotationVector,
         NumSensors
     };
 
@@ -195,8 +180,6 @@ public:
     virtual int setDelay(int32_t handle, int64_t ns);
     virtual int enable(int32_t handle, int enabled);
     virtual int batch(int handle, int flags, int64_t period_ns, int64_t timeout);
-    int enableBatch(int en, int toggleEnable);
-    int32_t getEnableMask() { return mEnabled; }
     void getHandle(int32_t handle, int &what, android::String8 &sname);
 
     virtual int readEvents(sensors_event_t *data, int count);
@@ -204,9 +187,7 @@ public:
     virtual int getAccelFd() const;
     virtual int getCompassFd() const;
     virtual int getPollTime();
-    virtual int getStepCountPollTime();
     virtual bool hasPendingEvents() const;
-    virtual bool hasStepCountPendingEvents();
     virtual void sleepEvent();
     virtual void wakeEvent();
     int populateSensorList(struct sensor_t *list, int len);
@@ -236,10 +217,6 @@ public:
     int significantMotionHandler(sensors_event_t* data);
     bool checkSmdSupport(){return (mDmpSignificantMotionEnabled);};
 
-    int enableDmpPedometer(int, int);
-    int readDmpPedometerEvents(sensors_event_t* data, int count, int32_t id, int32_t type, int outputType);
-    int getDmpPedometerFd();
-    bool checkPedometerSupport() {return (mDmpPedometerEnabled || mDmpStepCountEnabled);};
     bool checkOrientationSupport() {return ((isDmpDisplayOrientationOn()
                                        && (mDmpOrientationEnabled
                                        || !isDmpScreenAutoRotationEnabled())));};
@@ -261,7 +238,6 @@ protected:
     int smHandler(sensors_event_t *data);
     int pHandler(sensors_event_t *data);
     int scHandler(sensors_event_t *data);
-    int gmHandler(sensors_event_t *data);
     int psHandler(sensors_event_t *data);
     void calcOrientationSensor(float *Rx, float *Val);
     virtual int update_delay();
@@ -284,7 +260,6 @@ protected:
     int enableGyro(int en);
     int enableAccel(int en);
     int enableCompass(int en, int rawSensorOn);
-    int enablePressure(int en);
     void computeLocalSensorMask(int enabled_sensors);
     int computeBatchSensorMask(int enableSensor, int checkNewBatchSensor);
     int computeBatchDataOutput();
@@ -304,8 +279,6 @@ protected:
     void setCompassDelay(int64_t ns);
     void enable_iio_sysfs(void);
     int enableTap(int);
-    int enablePedometer(int);
-    int checkPedQuatEnabled();
     int check6AxisQuatEnabled();
     int checkLPQuaternion();
     int checkAccelPed();
@@ -318,7 +291,6 @@ protected:
     long mMasterSensorMask;
     long mLocalSensorMask;
     int mPollTime;
-    int mStepCountPollTime;
     bool mHaveGoodMpuCal;   // flag indicating that the cal file can be written
     int mGyroAccuracy;      // value indicating the quality of the gyro calibr.
     int mAccelAccuracy;     // value indicating the quality of the accel calibr.
@@ -332,7 +304,6 @@ protected:
 
     int iio_fd;
     int accel_fd;
-    int mpufifo_fd;
     int gyro_temperature_fd;
     int accel_x_offset_fd;
     int accel_y_offset_fd;
@@ -356,10 +327,6 @@ protected:
     int dmp_sign_motion_fd;
     int mDmpSignificantMotionEnabled;
 
-    int dmp_pedometer_fd;
-    int mDmpPedometerEnabled;
-    int mDmpStepCountEnabled;
-
     uint32_t mEnabled;
     uint32_t mBatchEnabled;
     int64_t mBatchTimeoutInMs;
@@ -370,7 +337,7 @@ protected:
     short mCachedGyroData[3];
     long mCachedAccelData[3];
     long mCachedCompassData[3];
-    long mCachedQuaternionData[3];
+    long mCachedQuaternionData[4];
     long mCached6AxisQuaternionData[3];
     long mCachedPedQuaternionData[3];
     long mCachedPressureData;
@@ -387,14 +354,10 @@ protected:
     long mGyroScale;
     long mCompassScale;
     float mCompassBias[3];
-    bool mFactoryGyroBiasAvailable;
-    long mFactoryGyroBias[3];
     bool mGyroBiasAvailable;
     bool mGyroBiasApplied;
     float mGyroBias[3];    //in body frame
     long mGyroChipBias[3]; //in chip frame
-    bool mFactoryAccelBiasAvailable;
-    long mFactoryAccelBias[3];
     bool mAccelBiasAvailable;
     bool mAccelBiasApplied;
     long mAccelBias[3];    //in chip frame
@@ -410,7 +373,6 @@ protected:
 
     int64_t mSensorTimestamp;
     int64_t mCompassTimestamp;
-    int64_t mPressureTimestamp;
 
     struct sysfs_attrbs {
        char *chip_enable;
@@ -439,19 +401,15 @@ protected:
        char *accel_fsr;
        char *accel_bias;
        char *accel_orient;
-       char *accel_fifo_enable;
        char *accel_x_fifo_enable;
        char *accel_y_fifo_enable;
        char *accel_z_fifo_enable;
 
-       char *three_axis_q_on; //formerly quaternion_on
+       char *quaternion_on; //formerly quaternion_on
        char *in_quat_r_en;
        char *in_quat_x_en;
        char *in_quat_y_en;
        char *in_quat_z_en;
-       char *six_axis_q_on;
-       char *ped_q_on;
-       char *accel_ped_on;
 
        char *in_timestamp_en;
 
@@ -483,22 +441,13 @@ protected:
        char *smd_delay_threshold;
        char *smd_delay_threshold2;
        char *smd_threshold;
-       char *batchmode_timeout;
-       char *batchmode_wake_fifo_full_on;
-
-       char *pedometer_on;
-       char *pedometer_int_on;
-       char *event_pedometer;
-       char *pedometer_steps;
     } mpu;
 
     char *sysfs_names_ptr;
     int mMplFeatureActiveMask;
     uint64_t mFeatureActiveMask;
     bool mDmpOn;
-    int mPedUpdate;
     int64_t mQuatSensorTimestamp;
-    uint64_t mLastStepCount;
 
 private:
     /* added for dynamic get sensor list */
@@ -520,12 +469,7 @@ private:
     int isLowPowerQuatEnabled();
     int isDmpDisplayOrientationOn();
     void getCompassBias();
-    void getFactoryGyroBias();
-    void setFactoryGyroBias();
     void getGyroBias();
-    void setGyroBias();
-    void getFactoryAccelBias();
-    void setFactoryAccelBias();
     void getAccelBias();
     void setAccelBias();
     int isCompassDisabled();

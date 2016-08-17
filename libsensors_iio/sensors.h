@@ -41,16 +41,12 @@ enum {
     ID_A,
     ID_M,
     ID_RM,
-    ID_PS,
     ID_O,
     ID_RV,
     ID_GRV,
     ID_LA,
     ID_GR,
     ID_SM,
-    ID_P,
-    ID_SC,
-    ID_GMRV,
     ID_SO
 };
 
